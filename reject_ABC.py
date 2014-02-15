@@ -18,22 +18,18 @@ def real_posterior(x, noise, y_star, epsilon):
 if __name__ == '__main__':
     
     num_samples = 20000
-    #noise = 0.03
     noise = 0.3
     
-    #noise = np.matrix([gauss(0.0 , noise_level) for i in range(num_samples)]).T
-    #X = np.matrix([ for i in range(num_samples)]).T
-
     # The value we would like to replicate
-    #y_star = 0.11    
     y_star = 1.3
     
     # Epsilon tube
-    #epsilon = 0.01     
     epsilon = 0.1
     
     samples = []
     sample_values = []
+    
+    sim_calls = 0
     
     for i in range(num_samples):
         if i % 200 == 0: print i
@@ -44,7 +40,8 @@ if __name__ == '__main__':
             
             # Perform simulation
             y = simulator(x, noise)
-            
+            sim_calls += 1
+
             # Calculate error
             error = abs(y_star - y)
             
@@ -52,7 +49,8 @@ if __name__ == '__main__':
         samples.append(x)
         sample_values.append(y)
 
-    print 'plotting'
+    print 'sim_calls', sim_calls
+
     test_range = np.linspace(0, 4 * np.pi, 100)        
 
     # Make more room for the actual plot

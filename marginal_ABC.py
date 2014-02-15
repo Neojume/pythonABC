@@ -12,31 +12,25 @@ def simulator(theta, N=500):
 def real_posterior(x, N=500):
     return np.exp(distr.gamma.logpdf(x, 0.1 + N, 0.1 + N * 9.42))
 
-def logsumexp(x,dim=0):
+def logsumexp(x, dim=0):
     '''
     Compute log(sum(exp(x))) in numerically stable way.
     '''
     
-    if dim==0:
+    if dim == 0:
         xmax = x.max(0)
-        return xmax + np.log(np.exp(x-xmax).sum(0))
-    elif dim==1:
+        return xmax + np.log(np.exp(x - xmax).sum(0))
+    elif dim == 1:
         xmax = x.max(1)
-        return xmax + np.log(np.exp(x-xmax[:,newaxis]).sum(1))
+        return xmax + np.log(np.exp(x - xmax[:, newaxis]).sum(1))
     else: 
         raise 'dim ' + str(dim) + 'not supported'
 
 if __name__ == '__main__':
-    np.random.seed(87655678)
-    seed(87655678)
-    
-    # So that an error gets raised if there is an overflow
-    np.seterr(over = 'raise')
-
+    # Parameters
     num_samples = 10000
     y_star = 9.42
     epsilon = 0.05
-    
     S = 20
     
     prior = distr.gamma
@@ -44,15 +38,15 @@ if __name__ == '__main__':
     
     proposal = distr.lognormal
     proposal_args = [0.1]
-        
-    samples = []
-    sample_values = []
     
     log_theta = 0.0
     theta = 1.0
     
-    for i in range(num_samples):
-    
+    samples = []
+    sim_calls = 0
+    accepted = 0
+
+    for i in xrange(num_samples):
         # Propose a new theta
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
@@ -64,9 +58,10 @@ if __name__ == '__main__':
         diff_p = []
         
         # Get S samples and approximate marginal likelihood
-        for s in range(S):
+        for s in xrange(S):
             new_x = simulator(theta)
             new_x_p = simulator(theta_p)
+            sim_calls += 2
             
             # Compute the P(y | x, theta) for these samples
             u = linalg.norm(new_x - y_star) / epsilon
@@ -83,21 +78,18 @@ if __name__ == '__main__':
         
         diff_term = logsumexp(np.array(diff_p)) - logsumexp(np.array(diff))
         
-        try:
-            accept = min(1.0, np.exp((numer - denom) + diff_term))
-        except FloatingPointError:
-            # Gets triggered when there is an overflow in exp
-            accept = 1.0
-        
-        #print x, accept, diff_term
-        #raw_input()
-        
-        if distr.uniform.rvs(0, 1) <= accept:
+        log_alpha = min(0.0, (numer - denom) + diff_term) 
+         
+        if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
+            accepted += 1
             theta = theta_p
             log_theta = log_theta_p
             
         samples.append(theta)
     
+    print 'sim_calls', sim_calls
+    print 'acceptance ratio', accepted / float(num_samples)
+
     # Create plots of how close we are
     rng = np.linspace(0.07, 0.13, 100)
     plt.hist(samples[1500:], bins = 100, normed=True)

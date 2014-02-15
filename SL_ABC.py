@@ -26,6 +26,8 @@ if __name__ == '__main__':
     proposal_args = [0.1]
     
     samples = []
+    sim_calls = 0
+    accepted = 0
     
     log_theta = np.log(0.1)
     theta = 0.1
@@ -39,7 +41,8 @@ if __name__ == '__main__':
         # Get S samples from simulator
         x = [simulator(theta) for s in xrange(S)]    
         x_p = [simulator(theta_p) for s in xrange(S)]
-                
+        sim_calls += 2 * S
+
         # Set mu's according to eq. 5
         mu_theta = np.mean(x)
         mu_theta_p = np.mean(x_p)
@@ -57,11 +60,15 @@ if __name__ == '__main__':
         log_alpha = min(0.0, (numer - denom) + other_term)
                 
         if distr.uniform.rvs(0.0, 1.0) <= np.exp(log_alpha):
+            accepted += 1
             log_theta = log_theta_p
             theta = theta_p
                 
         # Accept the sample
         samples.append(theta)
+
+    print 'sim_calls', sim_calls
+    print 'acceptance rate', float(accepted) / num_samples
 
     precision = 100
     test_range = np.linspace(0.07, 0.13, 100)

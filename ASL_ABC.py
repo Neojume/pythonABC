@@ -1,25 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jan 28 22:44:33 2014
-
-@author: steven
-"""
-import cProfile
 import numpy as np
-from random import uniform, gauss, expovariate
-
 import distributions as distr
-
-import scipy.stats as stats
-from scipy import integrate
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from random import seed
 
-def gaussian(y, x, epsilon):
-    J = len(y)
-    return np.exp( - (x - y).T * (x - y) / (2 * epsilon ** 2)) / np.power(2 * np.pi * epsilon, J / 2)  
-        
 def conditional_error(alphas, u, tau, M):
     if u <= tau:
         return float(np.sum(alphas < u)) / M
@@ -29,14 +11,7 @@ def conditional_error(alphas, u, tau, M):
 def simulator(theta, N=500):
     return np.mean(distr.exponential.rvs(theta, N))
 
-    
-
-#if __name__ == '__main__':
 def ASL_ABC():
-    # So that the result is always the same
-    #np.random.seed(87655678)
-    #seed(87655678)
-    
     # Parameters
     num_samples = 10000
     y_star = 9.42
@@ -60,7 +35,9 @@ def ASL_ABC():
     theta = 1.0
     
     samples = []    
+
     sim_calls = 0
+    accepted = 0
             
     for i in range(num_samples):
         if i % 200 == 0:
@@ -123,25 +100,23 @@ def ASL_ABC():
             
             # Set unconditional error, using Monte Carlo estimate
             E = 50
-            #cond_errors = [conditional_error(alphas, uniform(0.0, 1.0), tau, M) for e in xrange(E)]
-            #error = sum([i * conditional_error(alphas, i, tau, M) for i in np.linspace(0.0, 1.0, E)])
-            #error = np.mean(cond_errors)
             error = np.mean([i * conditional_error(alphas, i, tau, M) for i in np.linspace(0,1,E)])
-            #error = integrate.quad(lambda x : x * conditional_error(alphas, x, tau, M), 0.0, 1.0)
 
             if error < ksi:
                 break
         
-        sim_calls += S
-        if uniform(0.0, 1.0) <= tau:
+        sim_calls += 2 * S
 
+        if uniform(0.0, 1.0) <= tau:
+            accepted += 1
             theta = theta_p
             log_theta = np.log(theta_p)
         
-        # Accept the sample
+        # Add the sample to the set of samples
         samples.append(theta)
 
-    print sim_calls
+    print 'sim_calls', sim_calls
+    print 'acceptance rate', float(accepted) / num_samples
     
     #test_range = np.linspace(0, 4 * np.pi)        
     #print samples
