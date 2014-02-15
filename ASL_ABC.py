@@ -7,32 +7,48 @@ def conditional_error(alphas, u, tau, M):
         return float(np.sum(alphas < u)) / M
     else:
         return float(np.sum(alphas >= u)) / M
-        
-def simulator(theta, N=500):
-    return np.mean(distr.exponential.rvs(theta, N))
 
-def ASL_ABC():
-    # Parameters
-    num_samples = 10000
-    y_star = 9.42
-    epsilon = 0.0
-    ksi = 0.01
-    S0 = 5
-    delta_S = 10
+def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
+    '''
+    Performs the Adaptive Synthetic Likelihood ABC algorithm described by Meeds
+    and Welling.
 
+    Parameters
+    ----------
+    problem: An instance of (a subclass of) ABC_Problem.
+
+    num_samples: The number of samples
+
+    epsilon: Epsilon for the error tube
+
+    ksi: Error margin
+
+    S0: Number of initial simulations per iteration
+
+    delta_S: Number of additional simulations
+
+    verbose: The verbosity of the algorithm. If True, will print iteration 
+    numbers
+    '''
+
+    y_star = problem.y_star
+
+    # TODO: make adaptive
     eye = np.identity(1)
 
+    simulator = problem.simulator
+
     # Prior distribution
-    prior = distr.gamma
-    prior_args = [0.1, 0.1]
+    prior = problem.prior 
+    prior_args = problem.prior_args
     
     # Proposal distribution
     # NOTE: First arg is always theta.
-    proposal = distr.lognormal
-    proposal_args = [0.1]    
+    proposal = problem.proposal
+    proposal_args = problem.proposal_args
                   
-    log_theta = 0.0
-    theta = 1.0
+    theta = problem.theta_init
+    log_theta = np.log(theta)
     
     samples = []    
 
@@ -40,8 +56,9 @@ def ASL_ABC():
     accepted = 0
             
     for i in range(num_samples):
-        if i % 200 == 0:
-            print i
+        if verbose:
+            if i % 200 == 0:
+                print i
 
         # Sample theta_p from proposal
         theta_p = proposal.rvs(log_theta, *proposal_args)
@@ -89,9 +106,19 @@ def ASL_ABC():
                 mu_theta = distr.normal.rvs(mu_hat_theta, sigma_theta_S)
                 
                 # Compute alpha using eq. 12   
-                numer = prior_logprob_p + distr.normal.logpdf(y_star, mu_theta_p, sigma_theta_p + (epsilon ** 2) * eye) + proposal_logprob
-                denom = prior_logprob + distr.normal.logpdf(y_star, mu_theta, sigma_theta + (epsilon ** 2) * eye) + proposal_logprob_p
-                
+                numer = prior_logprob_p + proposal_logprob + \
+                        distr.normal.logpdf(
+                                y_star, 
+                                mu_theta_p, 
+                                sigma_theta_p + (epsilon ** 2) * eye) 
+
+                denom = prior_logprob + proposal_logprob_p + \
+                        distr.normal.logpdf(
+                                y_star, 
+                                mu_theta, 
+                                sigma_theta + (epsilon ** 2) * eye) 
+               
+
                 log_alpha = min(0.0, numer - denom)
                 alphas.append(np.exp(log_alpha))
 
@@ -100,14 +127,15 @@ def ASL_ABC():
             
             # Set unconditional error, using Monte Carlo estimate
             E = 50
-            error = np.mean([i * conditional_error(alphas, i, tau, M) for i in np.linspace(0,1,E)])
+            error = np.mean([i * conditional_error(alphas, i, tau, M) \
+                    for i in np.linspace(0,1,E)])
 
             if error < ksi:
                 break
         
         sim_calls += 2 * S
 
-        if uniform(0.0, 1.0) <= tau:
+        if distr.uniform.rvs(0.0, 1.0) <= tau:
             accepted += 1
             theta = theta_p
             log_theta = np.log(theta_p)
@@ -115,35 +143,19 @@ def ASL_ABC():
         # Add the sample to the set of samples
         samples.append(theta)
 
+    return samples, float(accepted) / num_samples, sim_calls
+
+if __name__ == '__main__':
+    from problems import toy_problem
+
+    problem = toy_problem()
+    samples, rate, sim_calls = ASL_ABC(problem, 10000, 0, 0.05, 5, 10)
+
     print 'sim_calls', sim_calls
-    print 'acceptance rate', float(accepted) / num_samples
-    
-    #test_range = np.linspace(0, 4 * np.pi)        
-    #print samples
-    
+    print 'acceptance rate', rate
+
     rng = np.linspace(0.07, 0.13)
-    plt.hist(samples[1500:], bins = 100, normed=True)
-    plt.plot(rng, np.exp(stats.gamma.logpdf(rng, 0.1 + 500, 0, 1.0 / (0.1 + 500*9.42))))
+    plt.hist(samples[1500:], bins=100, normed=True)
+    plt.plot(rng, problem.real_posterior(rng))
 
     plt.show()
-    # Make more room for the actual plot
-    #gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
-    #rng = np.linspace(0.07,0.13)
-    #plt.plot(rng, stats.gamma.pdf(rng, 0.1 + 500, 0.1 + 500*0.0992))
-    #ax1 = plt.subplot(gs[0])
-    #plt.hold(True)
-    #plt.plot(test_range, real_func(test_range) )
-    #plt.fill_between(test_range, real_func(test_range) - noise, real_func(test_range) + noise, color=4*[0.5])
-    
-    #plt.plot([0, 4*np.pi], 2*[y_star], color='black')
-    #plt.fill_between([0, 4 * np.pi], 2*[y_star - epsilon], 2*[y_star + epsilon], color=4*[0.5])
-    #plt.scatter(samples, sample_values, marker='.')
-    
-    #ax2 = plt.subplot(gs[1], sharex=ax1)
-    #plt.hist(samples, bins=100, range=(0, 4 * np.pi), normed=True)
-        
-    #plt.show()
-#    
-if __name__ == '__main__':
-    ASL_ABC()
-    #cProfile.run('ASL_ABC()')
