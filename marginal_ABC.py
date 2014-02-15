@@ -19,7 +19,7 @@ def logsumexp(x, dim=0):
     else: 
         raise 'dim ' + str(dim) + 'not supported'
 
-def marginal_ABC(problem, S, epsilon, num_samples, verbose=False):
+def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     '''
     Performs the Pseudo Marginal Likelihood ABC algorithm described by Meeds and
     Welling.
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     from problems import toy_problem
 
     problem = toy_problem()
-    samples, rate, sim_calls = marginal_ABC(problem, 20, 0.05, 10000)
+    samples, rate, sim_calls = marginal_ABC(problem, 10000, 0.05, 20)
 
     print 'sim_calls', sim_calls
     print 'acceptance ratio', rate 

@@ -1,10 +1,6 @@
-import numpy as np
 import distributions as distr
 
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-
-def reject_ABC(problem, epsilon, num_samples, verbose=True):
+def reject_ABC(problem, num_samples, epsilon, verbose=True):
     y_star = problem.y_star
 
     simulator = problem.simulator
@@ -40,10 +36,12 @@ def reject_ABC(problem, epsilon, num_samples, verbose=True):
 
 if __name__ == '__main__':
     from problems import toy_problem
+    import matplotlib.pyplot as plt
+    import numpy as np
 
     problem = toy_problem()
 
-    samples, sim_calls = reject_ABC(problem, 0.05, 10000)
+    samples, sim_calls = reject_ABC(problem, 10000, 0.05)
 
     print 'sim_calls', sim_calls
 

@@ -5,7 +5,7 @@ from numpy import linalg
 from collections import defaultdict
 import kernels
     
-def adaptive_KDE(x_star, X, t, kernel=kernels.gaussian, h=1, alpha=0):
+def adaptive_kernel_regression(x_star, X, t, kernel=kernels.gaussian, h=1, alpha=0):
     '''
     Returns the kernel density estimate at x_star using the given kernel and 
     bandwidth on the given data.
@@ -13,11 +13,16 @@ def adaptive_KDE(x_star, X, t, kernel=kernels.gaussian, h=1, alpha=0):
     Parameters
     ----------
     x_star : estimation location
+
     X : coordinates of samples
+
     t : sample values
+
     kernel : kernel to use for the estimate, default epanechnikov
+
     bandwidth : bandwidth of the kernel, default 1
     '''
+
     # Calculate adaptive bandwidths
     bandwidth = defaultdict(lambda : alpha)
     for i, x1 in enumerate(X):
@@ -35,46 +40,14 @@ def adaptive_KDE(x_star, X, t, kernel=kernels.gaussian, h=1, alpha=0):
     weighted = np.multiply(weights, t)
     
     N = np.log(np.sum(weights))
-    #print N
     
     mean = np.sum(weighted) / np.exp(N)
-    #std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) / N)
     
     # Use unbiased estimator
     V2 = np.log(np.sum(np.square(weights)))
-    #std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) * N / (N**2.0 - V2))
     sigma = np.log(np.sum(np.multiply(weights, np.square(mean - t))))
     std = 0.5 * (sigma - N - V2)
     return mean, np.exp(std), N
-    
-def adaptive_KDE_old(x_star, X, t, kernel=kernels.gaussian, h=1.0, alpha = 0):
-
-    # Calculate adaptive bandwidths
-    bandwidth = defaultdict(lambda : alpha)
-    for i, x1 in enumerate(X):
-        for x2 in X:
-            u = linalg.norm(x1 - x2) / h
-            bandwidth[i] +=  (kernel(u) / h) * (x1 - x2) ** 2
-    
-    weights = []
-    for i, x in enumerate(X):
-        u = linalg.norm(x_star - x) / bandwidth[i]
-        weight = kernel(u) / bandwidth[i]
-            
-        weights.append(weight[0,0])
-            
-    weights = np.matrix(weights).T    
-    weighted = np.multiply(weights, t)
-    
-    N = np.sum(weights)
-    mean = np.sum(weighted) / N       
-    #std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) / N)
-    
-    # Unbiased estimator of the variance
-    V2 = np.sum(np.square(weights))
-    std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) * N / ((N ** 2.0) - V2))
-    
-    return mean, std, N
     
 def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
     '''
@@ -83,15 +56,15 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
     
     Parameters
     ----------
-        x_star : Estimate location
-        
-        X : Coordinates of samples
-        
-        t : Sample values
-        
-        kernel : kernel to use for the estimate, default Gaussian
-        
-        bandwidth : bandwidth of the kernel, default 1
+    x_star : Estimate location
+    
+    X : Coordinates of samples
+    
+    t : Sample values
+    
+    kernel : kernel to use for the estimate, default Gaussian
+    
+    bandwidth : bandwidth of the kernel, default 1
     '''
     t = np.array(t)
     weights = []
@@ -107,11 +80,9 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
 
     
     mean = np.sum(weighted) / np.exp(N)       
-    #std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) / N)
     
     # Use unbiased estimator
     V2 = np.log(np.sum(np.square(weights)))
-    #std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) * N / (N**2.0 - V2))
     summ = np.sum(np.multiply(weights, np.square(mean - t)))
     sigma = np.log(summ)
     std = 0.5 * (sigma - N - V2)

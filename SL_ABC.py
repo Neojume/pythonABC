@@ -2,7 +2,7 @@ import numpy as np
 import distributions as distr
 import matplotlib.pyplot as plt
 
-def SL_ABC(problem, S, epsilon, num_samples, verbose=False):
+def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
     '''
     Performs the Synthetic Likelihood ABC algorithm described by Meeds and 
     Welling.
@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     problem = toy_problem()
     
-    samples, acceptance_rate, sim_calls = SL_ABC(problem, 50, 0, 10000, True)
+    samples, acceptance_rate, sim_calls = SL_ABC(problem, 10000, 0, 50, True)
 
     print 'sim_calls', sim_calls
     print 'acceptance rate', acceptance_rate
