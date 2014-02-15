@@ -2,15 +2,8 @@ import kernels
 import numpy as np
 import distributions as distr
 from numpy import linalg
-from random import seed
 
 import matplotlib.pyplot as plt
-
-def simulator(theta, N=500):
-    return np.mean(distr.exponential.rvs(theta, N))
-
-def real_posterior(x, N=500):
-    return np.exp(distr.gamma.logpdf(x, 0.1 + N, 0.1 + N * 9.42))
 
 def logsumexp(x, dim=0):
     '''
@@ -26,27 +19,48 @@ def logsumexp(x, dim=0):
     else: 
         raise 'dim ' + str(dim) + 'not supported'
 
-if __name__ == '__main__':
-    # Parameters
-    num_samples = 10000
-    y_star = 9.42
-    epsilon = 0.05
-    S = 20
+def marginal_ABC(problem, S, epsilon, num_samples, verbose=False):
+    '''
+    Performs the Pseudo Marginal Likelihood ABC algorithm described by Meeds and
+    Welling.
+
+    Parameters
+    ----------
+    problem: An instance of (a subclass of) ABC_Problem.
+
+    S: Number of simulations per iteration
+
+    epsilon: Error margin
+
+    num_samples: The number of samples
+
+    verbose: The verbosity of the algorithm. If True, will print iteration 
+    numbers
+    '''
     
-    prior = distr.gamma
-    prior_args = [0.1, 0.1]
+    # Make local copies of problem parameters for speed
+
+    y_star = problem.y_star
+
+    prior = problem.prior
+    prior_args = problem.prior_args
     
-    proposal = distr.lognormal
-    proposal_args = [0.1]
+    proposal = problem.proposal
+    proposal_args = problem.proposal_args
     
-    log_theta = 0.0
-    theta = 1.0
+    simulator = problem.simulator
+
+    theta = problem.theta_init
+    log_theta = np.log(theta)
     
     samples = []
     sim_calls = 0
     accepted = 0
 
     for i in xrange(num_samples):
+        if verbose:
+            if i % 100 == 0:
+                print 'iteration', i
         # Propose a new theta
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
@@ -73,8 +87,10 @@ if __name__ == '__main__':
             x.append(new_x)
             x_p.append(new_x_p)
         
-        numer = prior.logpdf(theta_p, *prior_args) + proposal.logpdf(theta, log_theta_p, *proposal_args)
-        denom = prior.logpdf(theta, *prior_args) + proposal.logpdf(theta_p, log_theta, *proposal_args)
+        numer = prior.logpdf(theta_p, *prior_args) + \
+                proposal.logpdf(theta, log_theta_p, *proposal_args)
+        denom = prior.logpdf(theta, *prior_args) + \
+                proposal.logpdf(theta_p, log_theta, *proposal_args)
         
         diff_term = logsumexp(np.array(diff_p)) - logsumexp(np.array(diff))
         
@@ -87,11 +103,19 @@ if __name__ == '__main__':
             
         samples.append(theta)
     
+    return samples, accepted / float(num_samples), sim_calls
+
+if __name__ == '__main__':
+    from problems import toy_problem
+
+    problem = toy_problem()
+    samples, rate, sim_calls = marginal_ABC(problem, 20, 0.05, 10000)
+
     print 'sim_calls', sim_calls
-    print 'acceptance ratio', accepted / float(num_samples)
+    print 'acceptance ratio', rate 
 
     # Create plots of how close we are
     rng = np.linspace(0.07, 0.13, 100)
     plt.hist(samples[1500:], bins = 100, normed=True)
-    plt.plot(rng, real_posterior(rng))
+    plt.plot(rng, problem.real_posterior(rng))
     plt.show()
