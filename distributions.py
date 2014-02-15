@@ -7,6 +7,7 @@ Created on Mon Feb 03 17:59:08 2014
 
 @author: Steven
 """
+
 import numpy as np
 import scipy.special as special
 import pylab as pp
@@ -20,7 +21,8 @@ class gamma(object):
     @staticmethod
     def logpdf(x, alpha, beta):
         if beta > 0:
-            return alpha * np.log(beta) - special.gammaln(alpha) + (alpha - 1) * np.log(x) - beta * x
+            return alpha * np.log(beta) - \
+                special.gammaln(alpha) + (alpha - 1) * np.log(x) - beta * x
         else:
             assert False, "Beta is zero"
             
@@ -36,7 +38,8 @@ class normal(object):
         
     @staticmethod        
     def logpdf(x, mu, sigma):
-        return - 0.5 * np.log(2.0 * np.pi) - np.log(sigma) - 0.5 * ((x - mu) ** 2) / (sigma ** 2)
+        return - 0.5 * np.log(2.0 * np.pi) - np.log(sigma) - \
+                 0.5 * ((x - mu) ** 2) / (sigma ** 2)
         
     @staticmethod
     def rvs(mu, sigma, N=1):
@@ -85,22 +88,26 @@ class lognormal(object):
         
     @staticmethod        
     def logpdf(x, mu, sigma):
-        small = np.log(0.5 + 0.5 * special.erf((np.log(1e-6) - mu) / (np.sqrt(2.0) * sigma)))
         if x.__class__ == np.ndarray:
             if sigma > 0:
+                small = np.log(0.5 + 0.5 * special.erf((np.log(1e-6) - mu) / \
+                        (np.sqrt(2.0) * sigma)))
                 I = pp.find(x > 1e-6)
                 log_x = np.log(x[I])
                 lp = small*np.ones(x.shape)
-                lp[I] = -log_x - 0.5*np.log(2.0 * np.pi) - np.log(sigma) - 0.5 * ((log_x - mu) ** 2) / (sigma ** 2)
+                lp[I] = -log_x - 0.5 * np.log(2.0 * np.pi) - np.log(sigma) - \
+                        0.5 * ((log_x - mu) ** 2) / (sigma ** 2)
             else:
-                I = pp.find( x==mu)
+                I = pp.find(x == mu)
                 lp = -np.inf*np.ones(x.shape)
                 lp[I] = 0
         else:
             if sigma > 0:
                 if x > 1e-6:
                     log_x = np.log(x)
-                    lp    = - log_x - 0.5 * np.log(2.0 * np.pi) - np.log(sigma) - 0.5 * ((log_x - mu) ** 2) / (sigma ** 2)
+                    lp    = - log_x - 0.5 * np.log(2.0 * np.pi) - \
+                            np.log(sigma) - \
+                            0.5 * ((log_x - mu) ** 2) / (sigma ** 2)
                 else:
                     lp = small
             else:

@@ -2,7 +2,24 @@ import numpy as np
 import distributions as distr
 import matplotlib.pyplot as plt
 
-def SL_ABC(problem, S, epsilon, num_samples):
+def SL_ABC(problem, S, epsilon, num_samples, verbose=False):
+    '''
+    Performs the Synthetic Likelihood ABC algorithm described by Meeds and 
+    Welling.
+
+    Parameters
+    ----------
+    problem: An instance of (a subclass of) ABC_Problem.
+
+    S: Number of simulations per iteration
+
+    epsilon: Error margin
+
+    num_samples: The number of samples
+
+    verbose: The verbosity of the algorithm. If True, will print iteration 
+    numbers
+    '''
 
     # Make local copies of problem parameters for speed
 
@@ -28,6 +45,10 @@ def SL_ABC(problem, S, epsilon, num_samples):
     log_theta = np.log(theta)
     
     for i in xrange(num_samples):
+        if verbose:
+            if i % 100 == 0:
+                print 'iteration', i
+
         # Sample theta_p from proposal
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
@@ -71,11 +92,13 @@ def SL_ABC(problem, S, epsilon, num_samples):
     return samples, float(accepted) / num_samples, sim_calls
 
 if __name__ == '__main__':
+    # Test this class using the toy problem.
+
     from problems import toy_problem
 
     problem = toy_problem()
     
-    samples, acceptance_rate, sim_calls = SL_ABC(problem, 50, 0, 10000)
+    samples, acceptance_rate, sim_calls = SL_ABC(problem, 50, 0, 10000, True)
 
     print 'sim_calls', sim_calls
     print 'acceptance rate', acceptance_rate
