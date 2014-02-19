@@ -128,7 +128,9 @@ class logitnormal(object):
         
     @staticmethod        
     def logpdf(x, mu, sigma):
-        return - np.log(x) - np.log(1 - x) - 0.5 * np.log(2.0 * np.pi * sigma ** 2) - 0.5 * ((np.log(x) - np.log(1 - x) - mu) / sigma) ** 2
+        return - np.log(x) - np.log(1 - x) - \
+                0.5 * np.log(2.0 * np.pi * sigma ** 2) - \
+                0.5 * ((np.log(x) - np.log(1 - x) - mu) / sigma) ** 2
         
     @staticmethod
     def rvs(mu, sigma):
