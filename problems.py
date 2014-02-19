@@ -43,3 +43,21 @@ class toy_problem(ABC_Problem):
         return np.exp(distr.gamma.logpdf(x, 
             self.prior_args[0] + self.N, 
             self.prior_args[1] + self.N * self.y_star))
+
+
+class sinus_problem(ABC_Problem):
+    y_star = None
+
+    prior = distr.uniform
+    prior_args = [0, 4 * np.pi]
+
+    proposal = distr.normal
+    proposal_args = [3]
+
+    theta_init = None
+
+    def simulator(theta):
+        return np.sin(theta) + 0.1 * theta
+    
+    def real_posterior(x):
+        raise NotImplemented
