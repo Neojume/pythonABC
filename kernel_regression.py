@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 from numpy import linalg
 from collections import defaultdict
 import kernels
-    
-def adaptive_kernel_regression(x_star, X, t, kernel=kernels.gaussian, h=1, alpha=0):
+import scipy.optimize as opt
+
+def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian, alpha=0):
     '''
     Returns the kernel density estimate at x_star using the given kernel and 
     bandwidth on the given data.
@@ -36,8 +37,8 @@ def adaptive_kernel_regression(x_star, X, t, kernel=kernels.gaussian, h=1, alpha
         weight = kernel(u) / bandwidth[i]
         weights.append(weight[0,0])
             
-    weights = np.matrix(weights).T    
-    weighted = np.multiply(weights, t)
+    weights = np.array(weights)    
+    weighted = weights * t
     
     N = np.log(np.sum(weights))
     
@@ -45,11 +46,27 @@ def adaptive_kernel_regression(x_star, X, t, kernel=kernels.gaussian, h=1, alpha
     
     # Use unbiased estimator
     V2 = np.log(np.sum(np.square(weights)))
-    sigma = np.log(np.sum(np.multiply(weights, np.square(mean - t))))
+    sigma = np.log(np.sum(weights * np.square(mean - t)))
     std = 0.5 * (sigma - N - V2)
     return mean, np.exp(std), N
     
-def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
+def MLCV(h, X, kernel):
+    ans = 0
+    n = len(X)
+
+    for i, x1 in enumerate(X):
+        for j, x2 in enumerate(X):
+            if i == j:
+                continue
+
+            u = linalg.norm(x2 - x1) / h
+            ans += np.log(kernel(u)) 
+        ans -= - np.log((n - 1) * h)
+
+    # NOTE: Return minus the answer, because scipi only minimizes
+    return ans
+
+def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
     '''
     Returns the kernel regression estimate at x_star using the given kernel and 
     bandwidth on the given data.
@@ -64,17 +81,19 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
     
     kernel : kernel to use for the estimate, default Gaussian
     
-    bandwidth : bandwidth of the kernel, default 1
+    h : bandwidth of the kernel, default MLVC estimate
     '''
+
     t = np.array(t)
     weights = []
     for x in np.array(X):
-        u = linalg.norm(x_star - x) / bandwidth
-        weight = kernel(u) / bandwidth
+        u = linalg.norm(x_star - x) / h
+        #u = (x_star - x) / h
+        weight = kernel(u) / h
         weights.append(weight)
             
-    weights = np.matrix(weights).T    
-    weighted = np.multiply(weights, t)
+    weights = np.array(weights)    
+    weighted = weights * t
     
     N = np.log(np.sum(weights))
 
@@ -83,10 +102,14 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
     
     # Use unbiased estimator
     V2 = np.log(np.sum(np.square(weights)))
-    summ = np.sum(np.multiply(weights, np.square(mean - t)))
+    summ = np.sum(weights * np.square(mean - t))
     sigma = np.log(summ)
-    std = 0.5 * (sigma - N - V2)
+    #std = 0.5 * (sigma + N - V2)
+    std = 0.5 * (sigma - N)
     if np.isnan(std):
+        print 't', t
+        print 'X', X
+        print 'x_star', x_star
         print 'mean', mean
         print 'std', std
         print 'N', N
@@ -94,9 +117,30 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, bandwidth=1):
         print 'sigma', sigma
         print 'summ', summ
         print weights.T
+        print weighted
         print ''
     return mean, np.exp(std), N
-   
+
+def kernel_regression_old(x_star, X, t, h, kernel=kernels.gaussian):
+
+    t = np.array(t)
+    weights = []
+    for x in np.array(X):
+        u = linalg.norm(x_star - x) / h
+        weight = kernel(u) / h
+        weights.append(weight)
+            
+    weights = np.matrix(weights).T    
+    weighted = np.multiply(weights, t)
+    
+    N = np.sum(weights)
+    mean = np.sum(weighted) / N       
+
+    #std = np.sum(np.multiply(weights, np.square(mean - t))) / N
+    std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) / N)
+    return mean, std, N
+    
+
 def MSE(predictions, targets):
     '''
     Returns the mean squared error.
@@ -118,22 +162,22 @@ def real_func(x):
 
 if __name__ == '__main__':
     
-    num_samples = 30
+    num_samples = 300
     noise_level = 2
     limits = [0.0, 4 * np.pi]
     
     noise = [gauss(0.0, noise_level) for i in range(num_samples)]
-    #x_coords = [uniform(limits[0] , limits[1]) for i in range(num_samples)]
+    x_coords = [uniform(limits[0] , limits[1]) for i in range(num_samples)]
     
     # So that there is a gap in between
     d = limits[1] - limits[0]
-    x_coords = [uniform(limits[0], limits[0] + d / 4.0) for i in range(num_samples/2)]
-    x_coords += [uniform(limits[1] - d / 4.0, limits[1]) for i in range(num_samples/2)]
+    #x_coords = [uniform(limits[0], limits[0] + d / 4.0) for i in range(num_samples/2)]
+    #x_coords += [uniform(limits[1] - d / 4.0, limits[1]) for i in range(num_samples/2)]
     
     gap = biggest_gap(x_coords, limits)
     
-    X = np.matrix(x_coords).T
-    t = real_func(X) + np.matrix(noise).T
+    X = np.array(x_coords)
+    t = real_func(X) + np.array(noise)
 
     precision = 50
 
@@ -142,7 +186,7 @@ if __name__ == '__main__':
     
     errors = []   
     
-    bandwidth = 0.6
+    bandwidth = 0.5
     
     # Reset the means and stds
     means = []
@@ -151,7 +195,7 @@ if __name__ == '__main__':
     
     # Compute the kernel density estimates
     for i in test_range:
-        mu, sigma, N = kernel_regression(i, X, t, bandwidth=bandwidth)
+        mu, sigma, N = kernel_regression(i, X, t, bandwidth)
         means.append(mu)
         stds.append(sigma)
         Ns.append(N)
@@ -166,8 +210,8 @@ if __name__ == '__main__':
     
     
     # Plot the fit
-    ax1 = plt.subplot(221)
-    ax1.set_ylabel('KDE')
+    ax1 = plt.subplot(211)
+    ax1.set_ylabel('KRE')
     plt.plot(test_range, real_func(test_range), color='r')
     plt.plot(test_range, means, color='y')
     
@@ -176,44 +220,9 @@ if __name__ == '__main__':
     plt.fill_between(test_range, (means - 2*stds).flat, (means + 2*stds).flat, color=[0.7,0.7,0.7,0.7])
     plt.scatter(X.flat, t.flat)
     
-    plt.subplot(222, sharex=ax1)
+    plt.subplot(212, sharex=ax1)
     plt.plot(test_range, Ns, label='Ns')
     plt.plot(test_range, stds, label='stds')
     plt.legend()
-    
-    # Reset the means and stds
-    means = []
-    stds = []
-    Ns = []
-    
-    # Compute the kernel density estimates
-    for i in test_range:
-        mu, sigma, N = adaptive_KDE(i, X, t, h=bandwidth)
-        means.append(mu)
-        stds.append(sigma)
-        Ns.append(N)
-
-    # Convert to np arrays
-    means = np.array(means)
-    stds = np.array(stds)
-
-    ax2 = plt.subplot(223, sharex=ax1)
-    ax2.set_ylabel('Adaptive KDE')
-    plt.plot(test_range, real_func(test_range), color='r')
-    plt.plot(test_range, means, color='y')
-    
-    plt.xlim(limits[0], limits[1])
-    plt.ylim(-40, 60)
-    plt.fill_between(test_range, (means - 2*stds).flat, (means + 2*stds).flat, color=[0.7,0.7,0.7,0.7])
-    #plt.fill_between(test_range, real_func(test_range) - 2*noise_level, real_func(test_range) + 2*noise_level, color=[0.7,0.7,0.7,0.7])
-    #plt.fill_between(test_range, (means - stds).flat, (means + stds).flat, color='gray')
-    plt.scatter(X.flat, t.flat)
-    #plt.plot(bandwidth_range, errors)
-    
-    plt.subplot(224, sharex=ax2)
-    plt.plot(test_range, Ns, label='Ns')
-    plt.plot(test_range, stds, label='stds')
-    plt.legend()
-    
     plt.show()
     
