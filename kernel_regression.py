@@ -85,16 +85,14 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
 
     t = np.array(t)
     weights = np.zeros(len(X))
-    for x in np.array(X):
+    for i, x in enumerate(np.array(X)):
         u = linalg.norm(x_star - x) / h
-        #u = (x_star - x) / h
         weights[i] = kernel(u) / h
             
     weighted = weights * t
     
     N = np.log(np.sum(weights))
 
-    
     mean = np.sum(weighted) / np.exp(N)       
     
     # Use unbiased estimator
@@ -136,7 +134,7 @@ def kernel_regression_old(x_star, X, t, h, kernel=kernels.gaussian):
     mean = np.sum(weighted) / N       
 
     V2 = np.sum(np.square(weights))
-    std = np.sum(np.multiply(weights, np.square(mean - t))) / N
+    std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) / N)
     #std = np.sqrt(np.sum(weights * np.square(mean - t)) * (N / (N ** 2 - V2)))
     # TODO: for now hardcoded for Gaussian: replace with more general code
     # NOTE: zero bias assumed
@@ -215,7 +213,7 @@ if __name__ == '__main__':
     plt.fill_between(test_range, 
             (means - 2 * stds - confs), 
             (means + 2 * stds + confs), 
-            color=[0.7,0.5,0.5,0.5])
+            color=[0.7,0.3,0.3,0.5])
     plt.fill_between(test_range, 
             (means - 2 * stds), 
             (means + 2 * stds), 
@@ -251,7 +249,7 @@ if __name__ == '__main__':
     plt.fill_between(test_range, 
             (means - 2 * stds - confs), 
             (means + 2 * stds + confs), 
-            color=[0.7,0.5,0.5,0.5])
+            color=[0.7,0.3,0.3,0.5])
     plt.fill_between(test_range, 
             (means - 2 * stds), 
             (means + 2 * stds), 
