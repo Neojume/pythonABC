@@ -42,10 +42,7 @@ def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian, alpha=0
     
     mean = np.sum(weighted) / np.exp(N)
     
-    # Use unbiased estimator
-    V2 = np.log(np.sum(np.square(weights)))
     sigma = np.log(np.sum(weights * np.square(mean - t)))
-    #std = 0.5 * (sigma - N - V2)
     std = 0.5 * (sigma - N)
     return mean, np.exp(std), N
     
@@ -95,18 +92,15 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
 
     mean = np.sum(weighted) / np.exp(N)       
     
-    # Use unbiased estimator
-    V2 = log(np.sum(np.square(weights)))
     summ = np.sum(weights * np.square(mean - t))
     sigma = log(summ)
-    #std = 0.5 * (sigma + N - np.log(np.exp(2 * N) - np.exp(V2)))
-    std = 0.5 * (sigma - N)
-    if np.isnan(std):
+    log_std = 0.5 * (sigma - N)
+    if np.isnan(log_std):
         print 't', t
         print 'X', X
         print 'x_star', x_star
         print 'mean', mean
-        print 'std', std
+        print 'std', log_std
         print 'N', N
         print 'V2', V2
         print 'sigma', sigma
@@ -117,8 +111,8 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
 
     # TODO: currently hardcoded for Gaussian: make more general
     # NOTE: currently zero bias assumed 
-    log_conf = log(1.96) + 0.5 * (log(mean) - N - log(h) - log(2 * np.pi))
-    return mean, np.exp(std), np.exp(log_conf)
+    log_conf = log(1.96) + 0.5 * (log(2 * np.pi) + log_std - N - log(h))
+    return mean, np.exp(log_std), np.exp(log_conf)
 
 def kernel_regression_old(x_star, X, t, h, kernel=kernels.gaussian):
 
@@ -133,12 +127,10 @@ def kernel_regression_old(x_star, X, t, h, kernel=kernels.gaussian):
     N = np.sum(weights)
     mean = np.sum(weighted) / N       
 
-    V2 = np.sum(np.square(weights))
     std = np.sqrt(np.sum(np.multiply(weights, np.square(mean - t))) / N)
-    #std = np.sqrt(np.sum(weights * np.square(mean - t)) * (N / (N ** 2 - V2)))
     # TODO: for now hardcoded for Gaussian: replace with more general code
     # NOTE: zero bias assumed
-    conf = 1.96 * np.sqrt(mean / (N * h * 2.0 * np.sqrt(np.pi)))
+    conf = 1.96 * np.sqrt((2.0 * np.pi * std) / (N * h))
     return mean, std, conf
     
 
@@ -180,7 +172,7 @@ if __name__ == '__main__':
     X = np.array(x_coords)
     t = real_func(X) + np.array(noise)
 
-    precision = 100
+    precision = 200
 
     test_range = np.linspace(limits[0], limits[1], precision)
     bandwidth_range = np.linspace(gap, limits[1] - limits[0], precision) 
@@ -211,8 +203,8 @@ if __name__ == '__main__':
     plt.ylim(-40, 60)
     plt.xlim(limits[0], limits[1])
     plt.fill_between(test_range, 
-            (means - 2 * stds - confs), 
-            (means + 2 * stds + confs), 
+            (means - confs), 
+            (means + confs), 
             color=[0.7,0.3,0.3,0.5])
     plt.fill_between(test_range, 
             (means - 2 * stds), 
@@ -228,7 +220,7 @@ if __name__ == '__main__':
     # Reset the means and stds
     means = np.zeros(precision) 
     stds = np.zeros(precision)
-    Confs = np.zeros(precision)
+    confs = np.zeros(precision)
     
     # Compute the kernel density estimates
     for i, val in enumerate(test_range):
@@ -247,8 +239,8 @@ if __name__ == '__main__':
     plt.ylim(-40, 60)
     plt.xlim(limits[0], limits[1])
     plt.fill_between(test_range, 
-            (means - 2 * stds - confs), 
-            (means + 2 * stds + confs), 
+            (means - confs), 
+            (means + confs), 
             color=[0.7,0.3,0.3,0.5])
     plt.fill_between(test_range, 
             (means - 2 * stds), 
