@@ -92,27 +92,13 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
 
     mean = np.sum(weighted) / np.exp(N)       
     
-    summ = np.sum(weights * np.square(mean - t))
-    sigma = log(summ)
-    log_std = 0.5 * (sigma - N)
-    if np.isnan(log_std):
-        print 't', t
-        print 'X', X
-        print 'x_star', x_star
-        print 'mean', mean
-        print 'std', log_std
-        print 'N', N
-        print 'V2', V2
-        print 'sigma', sigma
-        print 'summ', summ
-        print weights.T
-        print weighted
-        print ''
+    summ = log(np.sum(weights * np.square(mean - t)))
+    log_std = 0.5 * (summ - N)
 
     # TODO: currently hardcoded for Gaussian: make more general
     # NOTE: currently zero bias assumed 
     log_conf = log(1.96) + 0.5 * (log(2 * np.pi) + log_std - N - log(h))
-    return mean, np.exp(log_std), np.exp(log_conf)
+    return mean, np.exp(log_std), np.exp(log_conf), np.exp(N)
 
 def kernel_regression_old(x_star, X, t, h, kernel=kernels.gaussian):
 
@@ -131,7 +117,7 @@ def kernel_regression_old(x_star, X, t, h, kernel=kernels.gaussian):
     # TODO: for now hardcoded for Gaussian: replace with more general code
     # NOTE: zero bias assumed
     conf = 1.96 * np.sqrt((2.0 * np.pi * std) / (N * h))
-    return mean, std, conf
+    return mean, std, conf, N
     
 
 def MSE(predictions, targets):
@@ -159,16 +145,16 @@ if __name__ == '__main__':
     noise_level = 2
     limits = [0.0, 4 * np.pi]
     
-    noise = [gauss(0.0, noise_level) for i in range(num_samples)]
     #x_coords = [uniform(limits[0] , limits[1]) for i in range(num_samples)]
     
     # So that there is a gap in between
     d = limits[1] - limits[0]
     x_coords = [uniform(limits[0], limits[0] + d / 4.0) for i in range(num_samples/2)]
     x_coords += [uniform(limits[1] - d / 4.0, limits[1]) for i in range(num_samples/2)]
-    
+
     gap = biggest_gap(x_coords, limits)
     
+    noise = [gauss(0.0, noise_level) for i in range(num_samples)]
     X = np.array(x_coords)
     t = real_func(X) + np.array(noise)
 
@@ -179,7 +165,7 @@ if __name__ == '__main__':
     
     errors = []   
     
-    bandwidth = 0.2
+    bandwidth = 0.3
     
     # Reset the means and stds
     means = np.zeros(precision) 
@@ -188,7 +174,7 @@ if __name__ == '__main__':
     
     # Compute the kernel density estimates
     for i, val in enumerate(test_range):
-        means[i], stds[i], confs[i] = kernel_regression(val, X, t, bandwidth)
+        means[i], stds[i], confs[i], _ = kernel_regression(val, X, t, bandwidth)
 
     # Compute the error and add it to the list
     error = MSE(means, real_func(test_range))
@@ -224,7 +210,7 @@ if __name__ == '__main__':
     
     # Compute the kernel density estimates
     for i, val in enumerate(test_range):
-        means[i], stds[i], confs[i] = kernel_regression_old(val, X, t, bandwidth)
+        means[i], stds[i], confs[i], _ = kernel_regression_old(val, X, t, bandwidth)
 
     # Compute the error and add it to the list
     error = MSE(means, real_func(test_range))
