@@ -12,6 +12,9 @@ def reject_ABC(problem, num_samples, epsilon, verbose=True):
 
         epsilon: The error margin or epsilon-tube.
 
+        verbose: If set to true iteration number as well as number of
+            simulation calls will be printed.
+
     Returns
     -------
     A tuple: samples, sim_calls
@@ -52,7 +55,7 @@ def reject_ABC(problem, num_samples, epsilon, verbose=True):
 
         if verbose:
             if i % 200 == 0: 
-                print i, current_sim_calls
+                print i, current_sim_calls, sum(sim_calls)
 
 
     return samples, sim_calls
@@ -66,7 +69,7 @@ if __name__ == '__main__':
 
     samples, sim_calls = reject_ABC(problem, 10000, 0.05)
 
-    print 'sim_calls', sim_calls
+    print 'sim_calls', sum(sim_calls)
 
     precision = 100
     test_range = np.linspace(0.07, 0.13, 100)

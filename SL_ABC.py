@@ -18,7 +18,7 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
     num_samples: The number of samples
 
     verbose: The verbosity of the algorithm. If True, will print iteration 
-    numbers
+    numbers and number of simulations
 
     Returns
     -------
@@ -98,7 +98,7 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         if verbose:
             if i % 100 == 0:
-                print 'iteration', i, current_sim_calls
+                print 'iteration', i, current_sim_calls, sum(sim_calls)
 
     
     return samples, sim_calls, float(accepted) / num_samples
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     
     samples, sim_calls, acceptance_rate = SL_ABC(problem, 10000, 0, 50, True)
 
-    print 'sim_calls', sim_calls
+    print 'sim_calls', sum(sim_calls)
     print 'acceptance rate', acceptance_rate
 
     def real_posterior(x, N=500):

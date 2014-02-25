@@ -28,7 +28,7 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     delta_S: Number of additional simulations
 
     verbose: The verbosity of the algorithm. If True, will print iteration 
-    numbers
+    numbers and number of simulation calls
 
     Returns
     -------
@@ -66,10 +66,6 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     accepted = 0
             
     for i in range(num_samples):
-        if verbose:
-            if i % 200 == 0:
-                print i
-
         # Sample theta_p from proposal
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
@@ -154,6 +150,11 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
         samples.append(theta)
         sim_calls.append(current_sim_calls)
 
+        if verbose:
+            if i % 200 == 0:
+                print i, current_sim_calls, sum(sim_calls)
+
+
     return samples, sim_calls, float(accepted) / num_samples
 
 if __name__ == '__main__':
@@ -162,7 +163,7 @@ if __name__ == '__main__':
     problem = toy_problem()
     samples, sim_calls, rate = ASL_ABC(problem, 10000, 0, 0.05, 5, 10)
 
-    print 'sim_calls', sim_calls
+    print 'sim_calls', sum(sim_calls)
     print 'acceptance rate', rate
 
     rng = np.linspace(0.07, 0.13)
