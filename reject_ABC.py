@@ -1,6 +1,25 @@
 import distributions as distr
 
 def reject_ABC(problem, num_samples, epsilon, verbose=True):
+    '''
+    Performs rejection ABC on the given problem.
+
+    Parameters
+    ----------
+        problem: The problem to solve An instance of the ABC_Problem class. 
+
+        num_samples: The number of samples to sample.
+
+        epsilon: The error margin or epsilon-tube.
+
+    Returns
+    -------
+    A tuple: samples, sim_calls
+
+        samples: list of samples
+
+        sim_calls: list of simulation calls needed for each sample
+    '''
     y_star = problem.y_star
 
     simulator = problem.simulator
@@ -10,27 +29,31 @@ def reject_ABC(problem, num_samples, epsilon, verbose=True):
 
     samples = []
     
-    sim_calls = 0
+    sim_calls = []
     
     for i in range(num_samples):
-        if verbose:
-            if i % 200 == 0: 
-                print i
-
+        current_sim_calls = 0
         error = epsilon + 1.0
+
         while  error > epsilon:
             # Sample x from the (uniform) prior
             x = prior.rvs(*prior_args)
             
             # Perform simulation
             y = simulator(x)
-            sim_calls += 1
+            current_sim_calls += 1
 
             # Calculate error
             error = abs(y_star - y)
             
         # Accept the sample
         samples.append(x)
+        sim_calls.append(current_sim_calls)
+
+        if verbose:
+            if i % 200 == 0: 
+                print i, current_sim_calls
+
 
     return samples, sim_calls
 

@@ -29,6 +29,16 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
 
     verbose: The verbosity of the algorithm. If True, will print iteration 
     numbers
+
+    Returns
+    -------
+    A tuple: samples, sim_calls, rate
+
+        samples: list of samples
+
+        sim_calls: list of simulation calls needed for each sample
+
+        rate: the acceptance rate
     '''
 
     y_star = problem.y_star
@@ -52,7 +62,7 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     
     samples = []    
 
-    sim_calls = 0
+    sim_calls = []
     accepted = 0
             
     for i in range(num_samples):
@@ -133,7 +143,7 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
             if error < ksi:
                 break
         
-        sim_calls += 2 * S
+        current_sim_calls = 2 * S
 
         if distr.uniform.rvs(0.0, 1.0) <= tau:
             accepted += 1
@@ -142,14 +152,15 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
         
         # Add the sample to the set of samples
         samples.append(theta)
+        sim_calls.append(current_sim_calls)
 
-    return samples, float(accepted) / num_samples, sim_calls
+    return samples, sim_calls, float(accepted) / num_samples
 
 if __name__ == '__main__':
     from problems import toy_problem
 
     problem = toy_problem()
-    samples, rate, sim_calls = ASL_ABC(problem, 10000, 0, 0.05, 5, 10)
+    samples, sim_calls, rate = ASL_ABC(problem, 10000, 0, 0.05, 5, 10)
 
     print 'sim_calls', sim_calls
     print 'acceptance rate', rate

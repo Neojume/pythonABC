@@ -19,6 +19,16 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     verbose: The verbosity of the algorithm. If True, will print iteration 
     numbers
+
+    Returns
+    -------
+    A tuple: samples, sim_calls, rate
+
+        samples: list of samples
+
+        sim_calls: list of simulation calls needed for each sample
+
+        rate: the acceptance rate
     '''
 
     # Make local copies of problem parameters for speed
@@ -38,17 +48,13 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
     simulator = problem.simulator
 
     samples = []
-    sim_calls = 0
+    sim_calls = []
     accepted = 0
     
     theta = problem.theta_init
     log_theta = np.log(theta)
     
     for i in xrange(num_samples):
-        if verbose:
-            if i % 100 == 0:
-                print 'iteration', i
-
         # Sample theta_p from proposal
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
@@ -56,7 +62,7 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
         # Get S samples from simulator
         x = [simulator(theta) for s in xrange(S)]    
         x_p = [simulator(theta_p) for s in xrange(S)]
-        sim_calls += 2 * S
+        current_sim_calls = 2 * S
 
         # Set mu's according to eq. 5
         mu_theta = np.mean(x)
@@ -88,8 +94,14 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
                 
         # Accept the sample
         samples.append(theta)
+        sim_calls.append(current_sim_calls)
+
+        if verbose:
+            if i % 100 == 0:
+                print 'iteration', i, current_sim_calls
+
     
-    return samples, float(accepted) / num_samples, sim_calls
+    return samples, sim_calls, float(accepted) / num_samples
 
 if __name__ == '__main__':
     # Test this class using the toy problem.
@@ -98,7 +110,7 @@ if __name__ == '__main__':
 
     problem = toy_problem()
     
-    samples, acceptance_rate, sim_calls = SL_ABC(problem, 10000, 0, 50, True)
+    samples, sim_calls, acceptance_rate = SL_ABC(problem, 10000, 0, 50, True)
 
     print 'sim_calls', sim_calls
     print 'acceptance rate', acceptance_rate
