@@ -11,17 +11,18 @@ def variation_distance(samples, problem, num_bins=100):
 
     Arguments
     ---------
-    samples: array-like
-             The list or array of samples
-    problem: instance of ABC_Problem
-             The problem class that the samples are of. Is used to
-             retrieve the cdf of the true posterior.
+    samples : array-like
+        The list or array of samples
+    problem : instance of ABC_Problem
+        The problem class that the samples are of. Is used to retrieve the cdf 
+        of the true posterior.
     num_bins: int
-              The number of bins to use for the approximation.
+        The number of bins to use for the approximation.
 
     Returns
     -------
-    The difference in histogram heights.
+    distance : array
+        The difference in histogram heights for each number of samples.
     '''
     diff = np.zeros(num_samples)
 
@@ -42,6 +43,42 @@ def variation_distance(samples, problem, num_bins=100):
 
     return diff
 
+def plot_distances(problem, num_samples, methods, method_args, method_labels):
+    '''
+    Plots the distance curves for the gives methods.
+
+    Arguments
+    ---------
+    problem : instance of ABC_Problem
+        The problem we're trying to solve.
+    num_samples : int
+        The number of samples to draw.
+    methods : list
+        List of methods to plot the curves of.
+    method_args : list of lists
+        Additional arguments for the different methods. problem and number of
+        samples will always be passed to the methods.
+    method_labels : list of strings
+        Labels for the legend of the plot.
+    '''
+    ax1 = plt.subplot(121)
+    ax1.set_xlabel('Number of samples')
+    ax1.set_ylabel('Error')
+    ax2 = plt.subplot(122, sharey=ax1)
+    ax2.set_xlabel('Number of simulation calls')
+
+    for i, method in enumerate(methods):
+        return_tuple = method(problem, num_samples, *method_args[i])
+        samples = return_tuple[0]
+        sim_calls = return_tuple[1]
+        dist = variation_distance(samples, problem)
+        ax1.plot(dist, label=method_labels[i])
+        ax2.plot(np.cumsum(sim_calls), dist, label=method_labels[i])
+
+    ax1.legend()
+    ax2.legend()
+
+    plt.show()
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -56,33 +93,24 @@ if __name__ == '__main__':
 
     num_samples = 3000
 
-    ax1 = plt.subplot(121)
-    ax1.set_xlabel('Number of samples')
-    ax1.set_ylabel('Error')
-    ax2 = plt.subplot(122, sharey=ax1)
-    ax2.set_xlabel('Number of simulation calls')
+    methods = []
+    method_args = []
+    method_labels = []
 
-    samples, sim_calls, _ = ASL_ABC(problem, num_samples, 0, 0.05, 10, 5, True)
-    dist = variation_distance(samples, problem)
-    ax1.plot(dist, label='ASL')
-    ax2.plot(np.cumsum(sim_calls), dist, label='ASL')
+    methods.append(ASL_ABC)
+    method_labels.append('ASL_ABC')
+    method_args.append([0, 0.05, 10, 5, True])
 
-    samples, sim_calls, _ = SL_ABC(problem, num_samples, 0, 10, True)
-    dist = variation_distance(samples, problem)
-    ax1.plot(dist, label='SL')
-    ax2.plot(np.cumsum(sim_calls), dist, label='SL')
+    methods.append(SL_ABC)
+    method_labels.append('SL_ABC')
+    method_args.append([0.05, 10, True])
 
-    samples, sim_calls, _ = marginal_ABC(problem, num_samples, 0.05, 10, True)
-    dist = variation_distance(samples, problem)
-    ax1.plot(dist, label='marginal')
-    ax2.plot(np.cumsum(sim_calls), dist, label='marginal')
-    
-    samples, sim_calls = reject_ABC(problem, num_samples, 0.1, True)
-    dist = variation_distance(samples, problem)
-    ax1.plot(dist, label='rejection')
-    ax2.plot(np.cumsum(sim_calls), dist, label='rejection')
+    methods.append(marginal_ABC)
+    method_labels.append('marginal_ABC')
+    method_args.append([0.05, 10, True])
+ 
+    methods.append(reject_ABC)
+    method_labels.append('reject_ABC')
+    method_args.append([0.1, True])
 
-    ax1.legend()
-    ax2.legend()
-
-    plt.show()
+    plot_distances(problem, num_samples, methods, method_args, method_labels)
