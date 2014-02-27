@@ -9,30 +9,27 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     Parameters
     ----------
-    problem: An instance of (a subclass of) ABC_Problem.
-
-    S: Number of simulations per iteration
-
-    epsilon: Error margin
-
-    num_samples: The number of samples
-
-    verbose: The verbosity of the algorithm. If True, will print iteration 
-    numbers and number of simulations
+    problem : An instance of (a subclass of) ABC_Problem.
+        The problem to solve.
+    S : int 
+        Number of simulations per iteration
+    epsilon : float
+        Error margin.
+    num_samples : int
+        The number of samples
+    verbose : bool
+        The verbosity of the algorithm. If True, will print iteration 
+        numbers and number of simulations
 
     Returns
     -------
-    A tuple: samples, sim_calls, rate
-
+    samples, sim_calls, rate : tuple
         samples: list of samples
-
         sim_calls: list of simulation calls needed for each sample
-
         rate: the acceptance rate
     '''
 
     # Make local copies of problem parameters for speed
-
     y_star = problem.y_star
     
     # Identity matrix of same dimension as y_star
@@ -100,27 +97,24 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
             if i % 100 == 0:
                 print 'iteration', i, current_sim_calls, sum(sim_calls)
 
-    
     return samples, sim_calls, float(accepted) / num_samples
 
 if __name__ == '__main__':
-    # Test this class using the toy problem.
-
     from problems import toy_problem
 
     problem = toy_problem()
     
-    samples, sim_calls, acceptance_rate = SL_ABC(problem, 10000, 0, 50, True)
+    samples, sim_calls, acceptance_rate = SL_ABC(problem, 10000, 0, 10, True)
 
     print 'sim_calls', sum(sim_calls)
     print 'acceptance rate', acceptance_rate
 
-    def real_posterior(x, N=500):
-        return np.exp(distr.gamma.logpdf(x, 0.1 + N, 0.1 + N * 9.42))
+    post = problem.true_posterior
+    post_args = problem.true_posterior_args
 
     precision = 100
     test_range = np.linspace(0.07, 0.13, 100)
-    plt.plot(test_range, real_posterior(test_range))
+    plt.plot(test_range, np.exp(post.logdf(test_range, *post_args)))
     plt.hist(samples[1500:], 100, normed=True, alpha=0.5)
     plt.show()    
 
