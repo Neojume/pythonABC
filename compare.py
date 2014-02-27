@@ -23,7 +23,9 @@ def variation_distance(samples, problem, num_bins=100):
     distance : array
         The difference in histogram heights for each number of samples.
     '''
-    diff = np.zeros(len(samples))
+
+    num_samples = len(samples)
+    diff = np.zeros(num_samples)
 
     cdf = problem.true_posterior.cdf
     args = problem.true_posterior_args
