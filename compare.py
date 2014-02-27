@@ -8,7 +8,6 @@ def variation_distance(samples, problem, num_bins=100):
     '''
     Computes the distance of the samples to the true distribution.
 
-
     Arguments
     ---------
     samples : array-like
@@ -24,7 +23,7 @@ def variation_distance(samples, problem, num_bins=100):
     distance : array
         The difference in histogram heights for each number of samples.
     '''
-    diff = np.zeros(num_samples)
+    diff = np.zeros(len(samples))
 
     cdf = problem.true_posterior.cdf
     args = problem.true_posterior_args
@@ -43,9 +42,10 @@ def variation_distance(samples, problem, num_bins=100):
 
     return diff
 
-def plot_distances(problem, num_samples, methods, method_args, method_labels):
+def plot_distances(problem, num_samples, methods, method_args, method_labels, 
+        repeats=1):
     '''
-    Plots the distance curves for the gives methods.
+    Calls the methods and plots the results.
 
     Arguments
     ---------
@@ -68,12 +68,20 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels):
     ax2.set_xlabel('Number of simulation calls')
 
     for i, method in enumerate(methods):
-        return_tuple = method(problem, num_samples, *method_args[i])
-        samples = return_tuple[0]
-        sim_calls = return_tuple[1]
-        dist = variation_distance(samples, problem)
-        ax1.plot(dist, label=method_labels[i])
-        ax2.plot(np.cumsum(sim_calls), dist, label=method_labels[i])
+        dist = np.zeros((num_samples, repeats))
+        sim_calls = np.zeros((num_samples, repeats))
+        for j in range(repeats):
+            return_tuple = method(problem, num_samples, *method_args[i])
+
+            samples = return_tuple[0]
+            sim_calls[:, j] = return_tuple[1]
+            dist[:,j] = variation_distance(samples, problem)
+
+        avg_dist = np.mean(dist, 1)
+        avg_sim_calls = np.mean(np.cumsum(sim_calls, 0), 1)
+
+        ax1.plot(avg_dist, label=method_labels[i])
+        ax2.plot(avg_sim_calls, avg_dist, label=method_labels[i])
 
     ax1.legend()
     ax2.legend()
@@ -85,18 +93,25 @@ if __name__ == '__main__':
     
     from SL_ABC import SL_ABC
     from ASL_ABC import ASL_ABC
+    from KRS_ABC import KRS_ABC
     from marginal_ABC import marginal_ABC
     from reject_ABC import reject_ABC
     from problems import toy_problem
 
     problem = toy_problem()
 
-    num_samples = 3000
+    num_samples = 2000
+    repeats = 10
 
     methods = []
     method_args = []
     method_labels = []
 
+    methods.append(KRS_ABC)
+    method_labels.append('KRS_ABC')
+    method_args.append([0.0, 0.1, 20, 10, True])
+    
+    '''
     methods.append(ASL_ABC)
     method_labels.append('ASL_ABC')
     method_args.append([0, 0.05, 10, 5, True])
@@ -112,5 +127,11 @@ if __name__ == '__main__':
     methods.append(reject_ABC)
     method_labels.append('reject_ABC')
     method_args.append([0.1, True])
+    '''
 
-    plot_distances(problem, num_samples, methods, method_args, method_labels)
+    plot_distances(problem, 
+            num_samples, 
+            methods, 
+            method_args, 
+            method_labels, 
+            repeats)
