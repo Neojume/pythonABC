@@ -32,12 +32,9 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
 
     Returns
     -------
-    A tuple: samples, sim_calls, rate
-
+    samples, sim_calls, rate : tuple
         samples: list of samples
-
         sim_calls: list of simulation calls needed for each sample
-
         rate: the acceptance rate
     '''
 
@@ -133,8 +130,8 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
             
             # Set unconditional error, using Monte Carlo estimate
             E = 50
-            error = np.mean([i * conditional_error(alphas, i, tau, M) \
-                    for i in np.linspace(0,1,E)])
+            error = np.mean([e * conditional_error(alphas, e, tau, M) \
+                    for e in np.linspace(0,1,E)])
 
             if error < ksi:
                 break
