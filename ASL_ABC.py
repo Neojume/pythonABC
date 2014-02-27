@@ -15,20 +15,21 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
 
     Parameters
     ----------
-    problem: An instance of (a subclass of) ABC_Problem.
-
-    num_samples: The number of samples
-
-    epsilon: Epsilon for the error tube
-
-    ksi: Error margin
-
-    S0: Number of initial simulations per iteration
-
-    delta_S: Number of additional simulations
-
-    verbose: The verbosity of the algorithm. If True, will print iteration 
-    numbers and number of simulation calls
+    problem : An instance of (a subclass of) ABC_Problem.
+        The problem to solve.
+    num_samples : int
+        The number of samples
+    epsilon : float
+        Epsilon for the error tube
+    ksi : float 
+        Error margin
+    S0 : int
+        Number of initial simulations per iteration
+    delta_S : int
+        Number of additional simulations
+    verbose : bool
+        The verbosity of the algorithm. If True, will print iteration 
+        numbers and number of simulation calls
 
     Returns
     -------
@@ -150,7 +151,6 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
         if verbose:
             if i % 200 == 0:
                 print i, current_sim_calls, sum(sim_calls)
-
 
     return samples, sim_calls, float(accepted) / num_samples
 
