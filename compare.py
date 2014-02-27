@@ -80,10 +80,24 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
             dist[:,j] = variation_distance(samples, problem)
 
         avg_dist = np.mean(dist, 1)
+        std_dist = np.std(dist, 1)
         avg_sim_calls = np.mean(np.cumsum(sim_calls, 0), 1)
+        
+        line, = ax1.plot(avg_dist, label=method_labels[i])
+        ax1.fill_between(
+                range(num_samples), 
+                avg_dist - 2 * std_dist,
+                avg_dist + 2 * std_dist, 
+                color=line.get_color(), 
+                alpha=0.5)
 
-        ax1.plot(avg_dist, label=method_labels[i])
-        ax2.plot(avg_sim_calls, avg_dist, label=method_labels[i])
+        line, = ax2.plot(avg_sim_calls, avg_dist, label=method_labels[i])
+        ax2.fill_between(
+                avg_sim_calls, 
+                avg_dist - 2 * std_dist, 
+                avg_dist +2 * std_dist, 
+                color=line.get_color(), 
+                alpha=0.5)
 
     ax1.legend()
     ax2.legend()
@@ -109,11 +123,6 @@ if __name__ == '__main__':
     method_args = []
     method_labels = []
 
-    methods.append(KRS_ABC)
-    method_labels.append('KRS_ABC')
-    method_args.append([0.0, 0.1, 20, 10, True])
-    
-    '''
     methods.append(ASL_ABC)
     method_labels.append('ASL_ABC')
     method_args.append([0, 0.05, 10, 5, True])
@@ -129,7 +138,6 @@ if __name__ == '__main__':
     methods.append(reject_ABC)
     method_labels.append('reject_ABC')
     method_args.append([0.1, True])
-    '''
 
     plot_distances(problem, 
             num_samples, 
