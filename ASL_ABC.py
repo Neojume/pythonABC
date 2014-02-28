@@ -44,9 +44,7 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     '''
 
     y_star = problem.y_star
-
-    # TODO: make adaptive
-    eye = np.identity(1)
+    eye = np.identity(problem.y_dim)
 
     simulator = problem.simulator
 
