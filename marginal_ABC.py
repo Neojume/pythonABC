@@ -21,9 +21,106 @@ def logsumexp(x, dim=0):
         raise 'dim ' + str(dim) + 'not supported'
 
 
-def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
+def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     '''
     Performs the Pseudo Marginal Likelihood ABC algorithm described by Meeds
+    and Welling.
+
+    Parameters
+    ----------
+    problem : An instance of (a subclass of) ABC_Problem.
+        The problem to solve.
+    S : int
+        Number of simulations per iteration.
+    epsilon : float
+        Error margin.
+    num_samples : int
+        The number of samples to draw.
+    verbose : bool
+        The verbosity of the algorithm. If True, will print iteration numbers
+        and number of simulation calls
+    '''
+
+    # Make local copies of problem parameters for speed
+
+    y_star = problem.y_star
+
+    prior = problem.prior
+    prior_args = problem.prior_args
+
+    proposal = problem.proposal
+    proposal_args = problem.proposal_args
+
+    simulator = problem.simulator
+
+    theta = problem.theta_init
+    log_theta = np.log(theta)
+
+    prev_diff = []
+
+    for s in xrange(S):
+        new_x = simulator(theta)
+
+        # Compute the P(y | x, theta) for these samples
+        u = linalg.norm(new_x - y_star) / epsilon
+        prev_diff.append(kernels.log_gaussian(u / epsilon))
+
+    prev_diff_term = logsumexp(np.array(prev_diff))
+    cur_sim_calls = S
+    samples = []
+    sim_calls = []
+    accepted = 0
+
+    for i in xrange(num_samples):
+        if verbose:
+            if i % 100 == 0:
+                print 'iteration', i, sum(sim_calls)
+        # Propose a new theta
+        theta_p = proposal.rvs(log_theta, *proposal_args)
+        log_theta_p = np.log(theta_p)
+
+        x_p = []
+        diff_p = []
+
+        # Get S samples and approximate marginal likelihood
+        for s in xrange(S):
+            new_x_p = simulator(theta_p)
+
+            # Compute the P(y | x, theta) for these samples
+            u_p = linalg.norm(new_x_p - y_star) / epsilon
+            diff_p.append(kernels.log_gaussian(u_p / epsilon))
+            x_p.append(new_x_p)
+
+        cur_sim_calls += S
+
+        # Calculate acceptance using eq. 3
+        # NOTE: Previous values are reused
+        numer = prior.logpdf(theta_p, *prior_args) + \
+            proposal.logpdf(theta, log_theta_p, *proposal_args)
+        denom = prior.logpdf(theta, *prior_args) + \
+            proposal.logpdf(theta_p, log_theta, *proposal_args)
+
+        cur_diff_term = logsumexp(np.array(diff_p))
+        diff_term = cur_diff_term - prev_diff_term
+
+        log_alpha = min(0.0, (numer - denom) + diff_term)
+
+        if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
+            accepted += 1
+            theta = theta_p
+            log_theta = log_theta_p
+            prev_diff_term = cur_diff_term
+
+        samples.append(theta)
+        sim_calls.append(cur_sim_calls)
+        cur_sim_calls = 0
+
+    return samples, sim_calls, accepted / float(num_samples)
+
+
+def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
+    '''
+    Performs the Marginal Likelihood ABC algorithm described by Meeds
     and Welling.
 
     Parameters
@@ -64,6 +161,7 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
         if verbose:
             if i % 100 == 0:
                 print 'iteration', i, sum(sim_calls)
+
         # Propose a new theta
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
@@ -92,6 +190,7 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
             x.append(new_x)
             x_p.append(new_x_p)
 
+        # Calculate acceptance according to eq. 4
         numer = prior.logpdf(theta_p, *prior_args) + \
             proposal.logpdf(theta, log_theta_p, *proposal_args)
         denom = prior.logpdf(theta, *prior_args) + \
