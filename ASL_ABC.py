@@ -37,7 +37,9 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     -------
     samples, sim_calls, rate : tuple
         samples: list of samples
+
         sim_calls: list of simulation calls needed for each sample
+
         rate: the acceptance rate
     '''
 
@@ -73,7 +75,7 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
         prior_logprob_p = prior.logpdf(theta_p, *prior_args)
         prior_logprob = prior.logpdf(theta, *prior_args)
 
-        proposal_logprob = proposal.logpdf(theta, log_theta_p, *prop_args)
+        proposal_logprob = proposal.logpdf(theta, log_theta_p, *proposal_args)
         proposal_logprob_p = proposal.logpdf(theta_p, log_theta, *proposal_args)
 
         # Reset the samples
@@ -107,8 +109,8 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
             alphas = []
             for m in range(M):
                 # Sample mu_theta_p and mu_theta using eq. 11
-                mu_theta_p = distr.normal.rvs(mu_hat_theta_p, sigma_theta_p_S)
                 mu_theta = distr.normal.rvs(mu_hat_theta, sigma_theta_S)
+                mu_theta_p = distr.normal.rvs(mu_hat_theta_p, sigma_theta_p_S)
 
                 # Compute alpha using eq. 12
                 numer = prior_logprob_p + proposal_logprob + \
