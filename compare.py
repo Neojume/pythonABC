@@ -4,6 +4,7 @@ Implements currently one distance measure.
 
 import numpy as np
 
+
 def variation_distance(samples, problem, num_bins=100):
     '''
     Computes the distance of the samples to the true distribution.
@@ -13,7 +14,7 @@ def variation_distance(samples, problem, num_bins=100):
     samples : array-like
         The list or array of samples
     problem : instance of ABC_Problem
-        The problem class that the samples are of. Is used to retrieve the cdf 
+        The problem class that the samples are of. Is used to retrieve the cdf
         of the true posterior.
     num_bins: int
         The number of bins to use for the approximation.
@@ -44,8 +45,10 @@ def variation_distance(samples, problem, num_bins=100):
 
     return diff
 
-def plot_distances(problem, num_samples, methods, method_args, method_labels, 
-        repeats=1):
+
+def plot_distances(problem, num_samples, methods, method_args, method_labels,
+                   repeats=1):
+
     '''
     Calls the methods and plots the results.
 
@@ -63,6 +66,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
     method_labels : list of strings
         Labels for the legend of the plot.
     '''
+
     ax1 = plt.subplot(121)
     ax1.set_xlabel('Number of samples')
     ax1.set_ylabel('Error')
@@ -70,34 +74,37 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
     ax2.set_xlabel('Number of simulation calls')
 
     for i, method in enumerate(methods):
+        # Allocate memory
         dist = np.zeros((num_samples, repeats))
         sim_calls = np.zeros((num_samples, repeats))
+
         for j in range(repeats):
             return_tuple = method(problem, num_samples, *method_args[i])
 
             samples = return_tuple[0]
             sim_calls[:, j] = return_tuple[1]
-            dist[:,j] = variation_distance(samples, problem)
+            dist[:, j] = variation_distance(samples, problem)
 
         avg_dist = np.mean(dist, 1)
         std_dist = np.std(dist, 1)
         avg_sim_calls = np.mean(np.cumsum(sim_calls, 0), 1)
-        
+
         line, = ax1.plot(avg_dist, label=method_labels[i])
         ax1.fill_between(
-                range(num_samples), 
-                avg_dist - 2 * std_dist,
-                avg_dist + 2 * std_dist, 
-                color=line.get_color(), 
-                alpha=0.5)
+            range(num_samples),
+            avg_dist - 2 * std_dist,
+            avg_dist + 2 * std_dist,
+            color=line.get_color(),
+            alpha=0.5)
 
+        # TODO: Compute errors on the sim_call average
         line, = ax2.plot(avg_sim_calls, avg_dist, label=method_labels[i])
         ax2.fill_between(
-                avg_sim_calls, 
-                avg_dist - 2 * std_dist, 
-                avg_dist +2 * std_dist, 
-                color=line.get_color(), 
-                alpha=0.5)
+            avg_sim_calls,
+            avg_dist - 2 * std_dist,
+            avg_dist + 2 * std_dist,
+            color=line.get_color(),
+            alpha=0.5)
 
     ax1.legend()
     ax2.legend()
@@ -106,7 +113,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    
+
     from SL_ABC import SL_ABC
     from ASL_ABC import ASL_ABC
     from KRS_ABC import KRS_ABC
@@ -116,8 +123,8 @@ if __name__ == '__main__':
 
     problem = toy_problem()
 
-    num_samples = 2000
-    repeats = 10
+    num_samples = 5000
+    repeats = 5
 
     methods = []
     method_args = []
@@ -125,23 +132,23 @@ if __name__ == '__main__':
 
     methods.append(ASL_ABC)
     method_labels.append('ASL_ABC')
-    method_args.append([0, 0.05, 10, 5, True])
+    method_args.append([0, 0.05, 5, 5, True])
 
     methods.append(SL_ABC)
     method_labels.append('SL_ABC')
-    method_args.append([0.05, 10, True])
+    method_args.append([0, 300, True])
 
-    methods.append(marginal_ABC)
-    method_labels.append('marginal_ABC')
-    method_args.append([0.05, 10, True])
- 
-    methods.append(reject_ABC)
-    method_labels.append('reject_ABC')
-    method_args.append([0.1, True])
+    #methods.append(marginal_ABC)
+    #method_labels.append('marginal_ABC')
+    #method_args.append([0.05, 10, True])
 
-    plot_distances(problem, 
-            num_samples, 
-            methods, 
-            method_args, 
-            method_labels, 
-            repeats)
+    #methods.append(reject_ABC)
+    #method_labels.append('reject_ABC')
+    #method_args.append([0.1, True])
+
+    plot_distances(problem,
+                   num_samples,
+                   methods,
+                   method_args,
+                   method_labels,
+                   repeats)
