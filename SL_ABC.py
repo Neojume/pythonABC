@@ -32,8 +32,6 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     # Make local copies of problem parameters for speed
     y_star = problem.y_star
-
-    # Identity matrix of same dimension as y_star
     eye = np.identity(problem.y_dim)
 
     prior = problem.prior
@@ -71,9 +69,9 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         # Compute alpha using eq. 10
         numer = prior.logpdf(theta_p, *prior_args) + \
-                proposal.logpdf(theta, log_theta_p, *proposal_args)
+            proposal.logpdf(theta, log_theta_p, *proposal_args)
         denom = prior.logpdf(theta, *prior_args) + \
-                proposal.logpdf(theta_p, log_theta, *proposal_args)
+            proposal.logpdf(theta_p, log_theta, *proposal_args)
 
         other_term = distr.normal.logpdf(y_star,
                 mu_theta_p,
@@ -94,7 +92,7 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
         sim_calls.append(current_sim_calls)
 
         if verbose:
-            if i % 100 == 0:
+            if i % 200 == 0:
                 print 'iteration', i, current_sim_calls, sum(sim_calls)
 
     return samples, sim_calls, float(accepted) / num_samples
@@ -117,4 +115,3 @@ if __name__ == '__main__':
     plt.plot(test_range, np.exp(post.logdf(test_range, *post_args)))
     plt.hist(samples[1500:], 100, normed=True, alpha=0.5)
     plt.show()
-
