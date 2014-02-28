@@ -1,8 +1,10 @@
 import distributions as distr
 import numpy as np
 
+
 class ABC_Problem(object):
     y_star = None
+    y_dim = None
 
     prior = None
     prior_args = None
@@ -12,11 +14,12 @@ class ABC_Problem(object):
 
     theta_init = None
 
-    def simulator(theta):
+    def simulator(self, theta):
         raise NotImplemented
-    
-    def real_posterior(x):
+
+    def real_posterior(self, x):
         raise NotImplemented
+
 
 class toy_problem(ABC_Problem):
     '''
@@ -25,39 +28,48 @@ class toy_problem(ABC_Problem):
 
     def __init__(self, y_star=9.42, N=500):
         self.y_star = y_star
-        
+        self.y_dim = 1
+
         self.N = N
 
         self.prior = distr.gamma
         self.prior_args = [0.1, 0.1]
-        
+
         self.proposal = distr.lognormal
         self.proposal_args = [0.1]
 
-        self.theta_init = 1.0
-    
+        self.theta_init = 0.1
+
+        self.true_posterior = distr.gamma
+        self.true_posterior_args = [
+            self.prior_args[0] + self.N,
+            self.prior_args[1] + self.N * self.y_star]
+
     def simulator(self, theta):
         return np.mean(distr.exponential.rvs(theta, self.N))
 
-    def real_posterior(self, x):
-        return np.exp(distr.gamma.logpdf(x, 
-            self.prior_args[0] + self.N, 
-            self.prior_args[1] + self.N * self.y_star))
+    def true_function(self, theta):
+        return 1.0 / theta
 
 
 class sinus_problem(ABC_Problem):
-    y_star = None
+    def __init__(self):
+        self.y_star = 1.3
+        self.y_dim = 1
 
-    prior = distr.uniform
-    prior_args = [0, 4 * np.pi]
+        self.prior = distr.uniform
+        self.prior_args = [0, 4 * np.pi]
 
-    proposal = distr.normal
-    proposal_args = [3]
+        self.proposal = distr.normal
+        self.proposal_args = [3]
 
-    theta_init = None
+        self.theta_init = 0.5
 
-    def simulator(theta):
-        return np.sin(theta) + 0.1 * theta
-    
+    def true_function(self, theta):
+        return np.sin(theta / 1.2) + 0.1 * theta
+
+    def simulator(self, theta):
+        return np.sin(theta / 1.2) + 0.1 * theta + distr.normal.rvs(0, 0.2)
+
     def real_posterior(x):
         raise NotImplemented
