@@ -1,4 +1,5 @@
 import kernels
+import sys
 import numpy as np
 import distributions as distr
 from numpy import linalg
@@ -14,16 +15,18 @@ def logsumexp(x, dim=0):
     if dim == 0:
         xmax = x.max(0)
         return xmax + np.log(np.exp(x - xmax).sum(0))
-    elif dim == 1:
-        xmax = x.max(1)
-        return xmax + np.log(np.exp(x - xmax[:, newaxis]).sum(1))
+    # TODO: support other dimensions
+    # NOTE: Newaxis is not defined
+    #elif dim == 1:
+    #    xmax = x.max(1)
+    #    return xmax + np.log(np.exp(x - xmax[:, newaxis]).sum(1))
     else:
         raise 'dim ' + str(dim) + 'not supported'
 
 
 def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     '''
-    Performs the Pseudo Marginal Likelihood ABC algorithm described by Meeds
+    Performs the Pseudo-Marginal Likelihood ABC algorithm described by Meeds
     and Welling.
 
     Parameters
@@ -74,12 +77,13 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     for i in xrange(num_samples):
         if verbose:
             if i % 100 == 0:
-                print 'iteration', i, sum(sim_calls)
+                sys.stdout.write('\riteration %d %d' % (i, sum(sim_calls)))
+                sys.stdout.flush()
+
         # Propose a new theta
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
 
-        x_p = []
         diff_p = []
 
         # Get S samples and approximate marginal likelihood
@@ -89,7 +93,6 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
             # Compute the P(y | x, theta) for these samples
             u_p = linalg.norm(new_x_p - y_star) / epsilon
             diff_p.append(kernels.log_gaussian(u_p / epsilon))
-            x_p.append(new_x_p)
 
         cur_sim_calls += S
 
@@ -105,6 +108,7 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         log_alpha = min(0.0, (numer - denom) + diff_term)
 
+        # Accept proposal with probability alpha
         if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
             accepted += 1
             theta = theta_p
@@ -114,6 +118,9 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
         samples.append(theta)
         sim_calls.append(cur_sim_calls)
         cur_sim_calls = 0
+
+    if verbose:
+        print ''
 
     return samples, sim_calls, accepted / float(num_samples)
 
@@ -160,14 +167,12 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     for i in xrange(num_samples):
         if verbose:
             if i % 100 == 0:
-                print 'iteration', i, sum(sim_calls)
+                sys.stdout.write('\riteration %d %d' % (i, sum(sim_calls)))
+                sys.stdout.flush()
 
         # Propose a new theta
         theta_p = proposal.rvs(log_theta, *proposal_args)
         log_theta_p = np.log(theta_p)
-
-        x = []
-        x_p = []
 
         diff = []
         diff_p = []
@@ -187,9 +192,6 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
             diff.append(kernels.log_gaussian(u / epsilon))
             diff_p.append(kernels.log_gaussian(u_p / epsilon))
 
-            x.append(new_x)
-            x_p.append(new_x_p)
-
         # Calculate acceptance according to eq. 4
         numer = prior.logpdf(theta_p, *prior_args) + \
             proposal.logpdf(theta, log_theta_p, *proposal_args)
@@ -200,6 +202,7 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         log_alpha = min(0.0, (numer - denom) + diff_term)
 
+        # Accept proposal with probability alpha
         if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
             accepted += 1
             theta = theta_p
@@ -208,13 +211,18 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
         samples.append(theta)
         sim_calls.append(current_sim_calls)
 
+    if verbose:
+        print ''
+
     return samples, sim_calls, accepted / float(num_samples)
 
 if __name__ == '__main__':
     from problems import toy_problem
+    from compare import variation_distance
 
     problem = toy_problem()
-    samples, sim_calls, rate = marginal_ABC(problem, 10000, 0.05, 20)
+    samples, sim_calls, rate = \
+        pseudo_marginal_ABC(problem, 5000, 0.05, 50, True)
 
     print 'sim_calls', sum(sim_calls)
     print 'acceptance ratio', rate
@@ -222,8 +230,15 @@ if __name__ == '__main__':
     post = problem.true_posterior
     post_args = problem.true_posterior_args
 
+    diff = variation_distance(samples, problem)
+
+    print diff[-1]
+
     # Create plots of how close we are
     rng = np.linspace(0.07, 0.13, 100)
-    plt.hist(samples[1500:], bins=100, normed=True)
+    plt.hist(samples, bins=100, normed=True)
     plt.plot(rng, np.exp(post.logpdf(rng, *post_args)))
+    plt.show()
+
+    plt.plot(diff)
     plt.show()
