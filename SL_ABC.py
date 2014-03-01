@@ -93,7 +93,11 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         if verbose:
             if i % 200 == 0:
-                print 'iteration', i, current_sim_calls, sum(sim_calls)
+                sys.stdout.write('\riteration %d %d' % (i, sum(sim_calls)))
+                sys.stdout.flush()
+
+    if verbose:
+        print ''
 
     return samples, sim_calls, float(accepted) / num_samples
 

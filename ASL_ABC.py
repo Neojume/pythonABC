@@ -38,6 +38,7 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     samples, sim_calls, rate : tuple
         samples: list of samples
 
+                irint 'iteration', i, current_sim_calls, sum(sim_calls)
         sim_calls: list of simulation calls needed for each sample
 
         rate: the acceptance rate
@@ -45,8 +46,6 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
 
     y_star = problem.y_star
     eye = np.identity(problem.y_dim)
-
-    simulator = problem.simulator
 
     # Prior distribution
     prior = problem.prior
@@ -56,6 +55,8 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     # NOTE: First arg is always theta.
     proposal = problem.proposal
     proposal_args = problem.proposal_args
+
+    simulator = problem.simulator
 
     theta = problem.theta_init
     log_theta = np.log(theta)
@@ -150,7 +151,12 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
 
         if verbose:
             if i % 200 == 0:
-                print i, current_sim_calls, sum(sim_calls)
+                sys.stdout.write('\riteration %d %d' % (i, sum(sim_calls)))
+                sys.stdout.flush()
+
+    if verbose:
+        print ''
+
 
     return samples, sim_calls, float(accepted) / num_samples
 
