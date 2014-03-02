@@ -73,6 +73,8 @@ if __name__ == '__main__':
 
     precision = 100
     test_range = np.linspace(0.07, 0.13, 100)
-    plt.plot(test_range, problem.real_posterior(test_range))
+    post = problem.true_posterior
+    post_args = problem.true_posterior_args
+    plt.plot(test_range, np.exp(post.logpdf(test_range, *post_args)))
     plt.hist(samples[1500:], 100, normed=True, alpha=0.5)
     plt.show()
