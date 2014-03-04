@@ -1,20 +1,24 @@
 import distributions as distr
+import data_manipulation as dm
 
 
-def reject_ABC(problem, num_samples, epsilon, verbose=True):
+def reject_ABC(problem, num_samples, epsilon, verbose=True, save=True):
     '''
     Performs rejection ABC on the given problem.
 
     Parameters
     ----------
-        problem: The problem to solve An instance of the ABC_Problem class.
-
-        num_samples: The number of samples to sample.
-
-        epsilon: The error margin or epsilon-tube.
-
-        verbose: If set to true iteration number as well as number of
+        problem : ABC_Problem instance
+            The problem to solve An instance of the ABC_Problem class.
+        num_samples : int
+            The number of samples to sample.
+        epsilon : float
+            The error margin or epsilon-tube.
+        verbose : bool
+            If set to true iteration number as well as number of
             simulation calls will be printed.
+        save : bool
+            If True will save the result to a (possibly exisisting) database
 
     Returns
     -------
@@ -58,14 +62,17 @@ def reject_ABC(problem, num_samples, epsilon, verbose=True):
             if i % 200 == 0:
                 print i, current_sim_calls, sum(sim_calls)
 
+    if save:
+        dm.save(reject_ABC, [epsilon], problem, (samples, sim_calls))
+
     return samples, sim_calls
 
 if __name__ == '__main__':
-    from problems import toy_problem
+    from problems import toy_problem, sinus_problem
     import matplotlib.pyplot as plt
     import numpy as np
 
-    problem = toy_problem()
+    problem = sinus_problem()
 
     samples, sim_calls = reject_ABC(problem, 10000, 0.05)
 
