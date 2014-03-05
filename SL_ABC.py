@@ -3,7 +3,7 @@ import distributions as distr
 import matplotlib.pyplot as plt
 
 
-def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
+def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
     '''
     Performs the Synthetic Likelihood ABC algorithm described by Meeds and
     Welling.
@@ -21,13 +21,17 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
     verbose : bool
         The verbosity of the algorithm. If True, will print iteration
         numbers and number of simulations
+    save : bool
+        If True, results will be stored in a possibly existing database
 
     Returns
     -------
-    samples, sim_calls, rate : tuple
+    samples, sim_calls, accepted : tuple
         samples: list of samples
+
         sim_calls: list of simulation calls needed for each sample
-        rate: the acceptance rate
+
+        accepted: list of bools whether the sample was accepted for each sample
     '''
 
     # Make local copies of problem parameters for speed
@@ -43,8 +47,8 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
     simulator = problem.simulator
 
     samples = []
+    accepted = []
     sim_calls = []
-    accepted = 0
 
     theta = problem.theta_init
     log_theta = np.log(theta)
@@ -83,9 +87,11 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
         log_alpha = min(0.0, (numer - denom) + other_term)
 
         if distr.uniform.rvs(0.0, 1.0) <= np.exp(log_alpha):
-            accepted += 1
+            accepted.append(True)
             log_theta = log_theta_p
             theta = theta_p
+        elif:
+            accepted.append(False)
 
         # Accept the sample
         samples.append(theta)
@@ -99,7 +105,10 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False):
     if verbose:
         print ''
 
-    return samples, sim_calls, float(accepted) / num_samples
+    if save:
+        dm.save(SL_ABC, [epsilon, S], problem, (samples, sim_calls, accepted))
+
+    return samples, sim_calls, accepted
 
 if __name__ == '__main__':
     from problems import toy_problem
