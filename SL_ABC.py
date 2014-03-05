@@ -2,6 +2,7 @@ import numpy as np
 import distributions as distr
 import matplotlib.pyplot as plt
 import data_manipulation as dm
+import sys
 
 
 def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
@@ -44,6 +45,7 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
 
     proposal = problem.proposal
     proposal_args = problem.proposal_args
+    use_log = problem.use_log
 
     simulator = problem.simulator
 
@@ -57,7 +59,8 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
     for i in xrange(num_samples):
         # Sample theta_p from proposal
         theta_p = proposal.rvs(log_theta, *proposal_args)
-        log_theta_p = np.log(theta_p)
+        if use_log:
+            log_theta_p = np.log(theta_p)
 
         # Get S samples from simulator
         x = [simulator(theta) for s in xrange(S)]
@@ -73,10 +76,15 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
         sigma_theta_p = np.std(x_p)
 
         # Compute alpha using eq. 10
-        numer = prior.logpdf(theta_p, *prior_args) + \
+        numer = prior.logpdf(theta_p, *prior_args)
+        denom = prior.logpdf(theta, *prior_args)
+
+        if use_log:
             proposal.logpdf(theta, log_theta_p, *proposal_args)
-        denom = prior.logpdf(theta, *prior_args) + \
             proposal.logpdf(theta_p, log_theta, *proposal_args)
+        else:
+            proposal.logpdf(theta, theta_p, *proposal_args)
+            proposal.logpdf(theta_p, theta, *proposal_args)
 
         other_term = distr.normal.logpdf(y_star,
                 mu_theta_p,
