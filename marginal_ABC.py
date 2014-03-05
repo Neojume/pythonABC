@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import distributions as distr
 from numpy import linalg
+import data_manipulation as dm
 
 import matplotlib.pyplot as plt
 
@@ -24,7 +25,8 @@ def logsumexp(x, dim=0):
         raise 'dim ' + str(dim) + 'not supported'
 
 
-def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
+def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False,
+                        save=True):
     '''
     Performs the Pseudo-Marginal Likelihood ABC algorithm described by Meeds
     and Welling.
@@ -64,11 +66,13 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     proposal = problem.proposal
     proposal_args = problem.proposal_args
+    use_log = problem.use_log
 
     simulator = problem.simulator
 
     theta = problem.theta_init
-    log_theta = np.log(theta)
+    if use_log:
+        log_theta = np.log(theta)
 
     prev_diff = []
 
@@ -93,8 +97,11 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
                 sys.stdout.flush()
 
         # Propose a new theta
-        theta_p = proposal.rvs(log_theta, *proposal_args)
-        log_theta_p = np.log(theta_p)
+        if use_log:
+            theta_p = proposal.rvs(log_theta, *proposal_args)
+            log_theta_p = np.log(theta_p)
+        else:
+            theta_p = proposal.rvs(theta, *proposal_args)
 
         diff_p = []
 
@@ -108,12 +115,16 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         cur_sim_calls += S
 
-        # Calculate acceptance using eq. 3
-        # NOTE: Previous values are reused
-        numer = prior.logpdf(theta_p, *prior_args) + \
-            proposal.logpdf(theta, log_theta_p, *proposal_args)
-        denom = prior.logpdf(theta, *prior_args) + \
-            proposal.logpdf(theta_p, log_theta, *proposal_args)
+        # Calculate acceptance according to eq. 4
+        numer = prior.logpdf(theta_p, *prior_args)
+        denom = prior.logpdf(theta, *prior_args)
+
+        if use_log:
+            numer += proposal.logpdf(theta, log_theta_p, *proposal_args)
+            denom += proposal.logpdf(theta_p, log_theta, *proposal_args)
+        else:
+            numer += proposal.logpdf(theta, theta_p, *proposal_args)
+            denom += proposal.logpdf(theta_p, theta, *proposal_args)
 
         cur_diff_term = logsumexp(np.array(diff_p))
         diff_term = cur_diff_term - prev_diff_term
@@ -124,7 +135,8 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
         if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
             accepted.append(True)
             theta = theta_p
-            log_theta = log_theta_p
+            if use_log:
+                log_theta = log_theta_p
             prev_diff_term = cur_diff_term
         else:
             accepted.append(False)
@@ -138,12 +150,12 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     if save:
         dm.save(pseudo_marginal_ABC, [epsilon, S], problem,
-            (samples, sim_calls, accepted))
+                (samples, sim_calls, accepted))
 
     return samples, sim_calls, accepted
 
 
-def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
+def marginal_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
     '''
     Performs the Marginal Likelihood ABC algorithm described by Meeds
     and Welling.
@@ -183,6 +195,7 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     proposal = problem.proposal
     proposal_args = problem.proposal_args
+    use_log = problem.use_log
 
     simulator = problem.simulator
 
@@ -200,8 +213,11 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
                 sys.stdout.flush()
 
         # Propose a new theta
-        theta_p = proposal.rvs(log_theta, *proposal_args)
-        log_theta_p = np.log(theta_p)
+        if use_log:
+            theta_p = proposal.rvs(log_theta, *proposal_args)
+            log_theta_p = np.log(theta_p)
+        else:
+            theta_p = proposal.rvs(theta, *proposal_args)
 
         diff = []
         diff_p = []
@@ -222,10 +238,15 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
             diff_p.append(kernels.log_gaussian(u_p / epsilon))
 
         # Calculate acceptance according to eq. 4
-        numer = prior.logpdf(theta_p, *prior_args) + \
-            proposal.logpdf(theta, log_theta_p, *proposal_args)
-        denom = prior.logpdf(theta, *prior_args) + \
-            proposal.logpdf(theta_p, log_theta, *proposal_args)
+        numer = prior.logpdf(theta_p, *prior_args)
+        denom = prior.logpdf(theta, *prior_args)
+
+        if use_log:
+            numer += proposal.logpdf(theta, log_theta_p, *proposal_args)
+            denom += proposal.logpdf(theta_p, log_theta, *proposal_args)
+        else:
+            numer += proposal.logpdf(theta, theta_p, *proposal_args)
+            denom += proposal.logpdf(theta_p, theta, *proposal_args)
 
         diff_term = logsumexp(np.array(diff_p)) - logsumexp(np.array(diff))
 
@@ -235,7 +256,8 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
         if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
             accepted.append(True)
             theta = theta_p
-            log_theta = log_theta_p
+            if use_log:
+                log_theta = log_theta_p
         else:
             accepted.append(False)
 
@@ -247,7 +269,7 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     if save:
         dm.save(pseudo_marginal_ABC, [epsilon, S], problem,
-            (samples, sim_calls, accepted))
+                (samples, sim_calls, accepted))
 
     return samples, sim_calls, accepted
 
