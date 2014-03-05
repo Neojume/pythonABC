@@ -1,6 +1,7 @@
 import numpy as np
 import distributions as distr
 import matplotlib.pyplot as plt
+import data_manipulation as dm
 
 
 def conditional_error(alphas, u, tau, M):
@@ -10,7 +11,8 @@ def conditional_error(alphas, u, tau, M):
         return float(np.sum(alphas >= u)) / M
 
 
-def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
+def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
+            save=True):
     '''
     Performs the Adaptive Synthetic Likelihood ABC algorithm described by Meeds
     and Welling.
@@ -32,16 +34,17 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     verbose : bool
         The verbosity of the algorithm. If True, will print iteration
         numbers and number of simulation calls
+    save : bool
+        If True, results will be stored in a possibly existing database
 
     Returns
     -------
-    samples, sim_calls, rate : tuple
+    samples, sim_calls, accepted : tuple
         samples: list of samples
 
-                irint 'iteration', i, current_sim_calls, sum(sim_calls)
         sim_calls: list of simulation calls needed for each sample
 
-        rate: the acceptance rate
+        accepted: list of bools whether the sample was accepted for each sample
     '''
 
     y_star = problem.y_star
@@ -141,9 +144,11 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
         current_sim_calls = 2 * S
 
         if distr.uniform.rvs(0.0, 1.0) <= tau:
-            accepted += 1
+            accepted.append(True)
             theta = theta_p
             log_theta = np.log(theta_p)
+        else:
+            accepted.append(False)
 
         # Add the sample to the set of samples
         samples.append(theta)
@@ -157,8 +162,11 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False):
     if verbose:
         print ''
 
+    if save:
+        dm.save(ASL_ABC, [epsilon, ksi, S0, delta_S], problem,
+                (samples, sim_calls, accepted))
 
-    return samples, sim_calls, float(accepted) / num_samples
+    return samples, sim_calls, accepted
 
 if __name__ == '__main__':
     from problems import toy_problem
