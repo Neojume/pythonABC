@@ -1,6 +1,7 @@
 import numpy as np
 import distributions as distr
 import matplotlib.pyplot as plt
+import data_manipulation as dm
 
 
 def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
@@ -90,7 +91,7 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
             accepted.append(True)
             log_theta = log_theta_p
             theta = theta_p
-        elif:
+        else:
             accepted.append(False)
 
         # Accept the sample
