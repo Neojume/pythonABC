@@ -33,15 +33,26 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     ----------
     problem : An instance of (a subclass of) ABC_Problem.
         The problem to solve.
-    S : int
-        Number of simulations per iteration.
     epsilon : float
         Error margin.
+    S : int
+        Number of simulations per iteration.
     num_samples : int
         The number of samples to draw.
     verbose : bool
         The verbosity of the algorithm. If True, will print iteration numbers
         and number of simulation calls
+    save : bool
+        If True, results will be stored in a possibly existing database
+
+    Returns
+    -------
+    samples, sim_calls, accepted : tuple
+        samples: list of samples
+
+        sim_calls: list of simulation calls needed for each sample
+
+        accepted: list of bools whether the sample was accepted for each sample
     '''
 
     # Make local copies of problem parameters for speed
@@ -70,9 +81,10 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
     prev_diff_term = logsumexp(np.array(prev_diff))
     cur_sim_calls = S
+
     samples = []
+    accepted = []
     sim_calls = []
-    accepted = 0
 
     for i in xrange(num_samples):
         if verbose:
@@ -110,10 +122,12 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         # Accept proposal with probability alpha
         if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
-            accepted += 1
+            accepted.append(True)
             theta = theta_p
             log_theta = log_theta_p
             prev_diff_term = cur_diff_term
+        else:
+            accepted.append(False)
 
         samples.append(theta)
         sim_calls.append(cur_sim_calls)
@@ -122,7 +136,11 @@ def pseudo_marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     if verbose:
         print ''
 
-    return samples, sim_calls, accepted / float(num_samples)
+    if save:
+        dm.save(pseudo_marginal_ABC, [epsilon, S], problem,
+            (samples, sim_calls, accepted))
+
+    return samples, sim_calls, accepted
 
 
 def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
@@ -143,6 +161,17 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     verbose : bool
         The verbosity of the algorithm. If True, will print iteration numbers
         and number of simulation calls
+    save : bool
+        If True, results will be stored in a possibly existing database
+
+    Returns
+    -------
+    samples, sim_calls, accepted : tuple
+        samples: list of samples
+
+        sim_calls: list of simulation calls needed for each sample
+
+        accepted: list of bools whether the sample was accepted for each sample
     '''
 
     # Make local copies of problem parameters for speed
@@ -161,8 +190,8 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     log_theta = np.log(theta)
 
     samples = []
+    accepted = []
     sim_calls = []
-    accepted = 0
 
     for i in xrange(num_samples):
         if verbose:
@@ -204,9 +233,11 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
 
         # Accept proposal with probability alpha
         if distr.uniform.rvs(0, 1) <= np.exp(log_alpha):
-            accepted += 1
+            accepted.append(True)
             theta = theta_p
             log_theta = log_theta_p
+        else:
+            accepted.append(False)
 
         samples.append(theta)
         sim_calls.append(current_sim_calls)
@@ -214,7 +245,11 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False):
     if verbose:
         print ''
 
-    return samples, sim_calls, accepted / float(num_samples)
+    if save:
+        dm.save(pseudo_marginal_ABC, [epsilon, S], problem,
+            (samples, sim_calls, accepted))
+
+    return samples, sim_calls, accepted
 
 if __name__ == '__main__':
     from problems import toy_problem
