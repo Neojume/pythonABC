@@ -58,11 +58,13 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
     # NOTE: First arg is always theta.
     proposal = problem.proposal
     proposal_args = problem.proposal_args
+    use_log = problem.use_log
 
     simulator = problem.simulator
 
     theta = problem.theta_init
-    log_theta = np.log(theta)
+    if use_log:
+        log_theta = np.log(theta)
 
     samples = []
     sim_calls = []
@@ -77,8 +79,12 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
         prior_logprob_p = prior.logpdf(theta_p, *prior_args)
         prior_logprob = prior.logpdf(theta, *prior_args)
 
-        proposal_logprob = proposal.logpdf(theta, log_theta_p, *proposal_args)
-        proposal_logprob_p = proposal.logpdf(theta_p, log_theta, *proposal_args)
+        if use_log:
+            proposal_logprob = proposal.logpdf(theta, log_theta_p, *proposal_args)
+            proposal_logprob_p = proposal.logpdf(theta_p, log_theta, *proposal_args)
+        else:
+            proposal_logprob = proposal.logpdf(theta, theta_p, *proposal_args)
+            proposal_logprob_p = proposal.logpdf(theta_p, theta, *proposal_args)
 
         # Reset the samples
         x = []
@@ -146,7 +152,8 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
         if distr.uniform.rvs(0.0, 1.0) <= tau:
             accepted.append(True)
             theta = theta_p
-            log_theta = np.log(theta_p)
+            if use_log:
+                log_theta = np.log(theta_p)
         else:
             accepted.append(False)
 
