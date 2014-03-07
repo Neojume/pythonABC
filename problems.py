@@ -38,6 +38,7 @@ class toy_problem(ABC_Problem):
 
         self.proposal = distr.lognormal
         self.proposal_args = [0.1]
+        self.use_log = True
 
         self.theta_init = 0.1
 
@@ -97,8 +98,9 @@ class wilkinson_problem(ABC_Problem):
             self.y_star, self.true_function)
         self.true_posterior_args = []
 
-        self.proposal = None
-        self.proposal_args = None
+        self.proposal = distr.normal
+        self.proposal_args = [1]
+        self.use_log = False
 
         self.theta_init = 0.5
 
@@ -107,7 +109,7 @@ class wilkinson_problem(ABC_Problem):
 
     def simulator(self, theta):
         mu = 2 * (theta + 2) * theta * (theta - 2)
-        return distr.normal.rvs(mu, 0.1 + theta ** 2)
+        return distr.normal.rvs(mu, 0.1 + theta ** 2)[0]
 
 class sinus_problem(ABC_Problem):
     def __init__(self):
@@ -119,6 +121,7 @@ class sinus_problem(ABC_Problem):
 
         self.proposal = distr.normal
         self.proposal_args = [3]
+        self.use_log = False
 
         self.theta_init = 0.5
 
@@ -126,7 +129,7 @@ class sinus_problem(ABC_Problem):
         return np.sin(theta / 1.2) + 0.1 * theta
 
     def simulator(self, theta):
-        return np.sin(theta / 1.2) + 0.1 * theta + distr.normal.rvs(0, 0.2)
+        return np.sin(theta / 1.2) + 0.1 * theta + distr.normal.rvs(0, 0.2)[0]
 
     def real_posterior(x):
         raise NotImplemented
