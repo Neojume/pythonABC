@@ -80,11 +80,11 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
         denom = prior.logpdf(theta, *prior_args)
 
         if use_log:
-            proposal.logpdf(theta, log_theta_p, *proposal_args)
-            proposal.logpdf(theta_p, log_theta, *proposal_args)
+            numer += proposal.logpdf(theta, log_theta_p, *proposal_args)
+            denom += proposal.logpdf(theta_p, log_theta, *proposal_args)
         else:
-            proposal.logpdf(theta, theta_p, *proposal_args)
-            proposal.logpdf(theta_p, theta, *proposal_args)
+            numer += proposal.logpdf(theta, theta_p, *proposal_args)
+            denom += proposal.logpdf(theta_p, theta, *proposal_args)
 
         other_term = distr.normal.logpdf(y_star,
                 mu_theta_p,
