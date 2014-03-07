@@ -36,6 +36,8 @@ class toy_problem(ABC_Problem):
         self.prior = distr.gamma
         self.prior_args = [0.1, 0.1]
 
+        self.rng = [1e-10, 10]
+
         self.proposal = distr.lognormal
         self.proposal_args = [0.1]
         self.use_log = True
@@ -98,6 +100,8 @@ class wilkinson_problem(ABC_Problem):
             self.y_star, self.true_function)
         self.true_posterior_args = []
 
+        self.rng = [-10, 10]
+
         self.proposal = distr.normal
         self.proposal_args = [1]
         self.use_log = False
@@ -118,6 +122,8 @@ class sinus_problem(ABC_Problem):
 
         self.prior = distr.uniform
         self.prior_args = [0, 4 * np.pi]
+
+        self.rng = [0, 4 * np.pi]
 
         self.proposal = distr.normal
         self.proposal_args = [3]
