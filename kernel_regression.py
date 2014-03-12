@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from numpy import linalg, log
 from collections import defaultdict
 import kernels
-import scipy.optimize as opt
 
 
 def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
@@ -73,30 +72,28 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
 
     Parameters
     ----------
-    x_star : Estimate location
+    x_star : np.array
+        Estimate location
 
-    X : Coordinates of samples
+    X : np.array
+        Coordinates of samples
 
-    t : Sample values
+    t : np.array
+        Sample values
 
     kernel : kernel to use for the estimate, default Gaussian
 
     h : bandwidth of the kernel, default MLVC estimate
     '''
 
-    t = np.array(t)
-    weights = np.zeros(len(X))
-    for i, x in enumerate(np.array(X)):
-        u = linalg.norm(x_star - x) / h
-        weights[i] = kernel(u) / h
-
-    weighted = weights * t
+    u = linalg.norm(x_star - X, axis=1) / h
+    weights = kernel(u) / h
+    weighted = t.T * weights
 
     N = np.log(np.sum(weights))
-
     mean = np.sum(weighted) / np.exp(N)
 
-    summ = log(np.sum(weights * np.square(mean - t)))
+    summ = log(np.sum(np.square(mean - t).T * weights))
     log_std = 0.5 * (summ - N)
 
     # TODO: currently hardcoded for Gaussian: make more general
@@ -148,24 +145,26 @@ def real_func(x):
 
 if __name__ == '__main__':
 
-    num_samples = 30
+    num_samples = 300
     noise_level = 2
     limits = [0.0, 4 * np.pi]
 
-    #x_coords = [uniform(limits[0] , limits[1]) for i in range(num_samples)]
+    x_coords = [uniform(limits[0], limits[1]) for i in range(num_samples)]
 
     # So that there is a gap in between
-    d = limits[1] - limits[0]
-    x_coords = [uniform(limits[0], limits[0] + d / 4.0)
-                for i in range(num_samples / 2)]
-    x_coords += [uniform(limits[1] - d / 4.0, limits[1])
-                 for i in range(num_samples / 2)]
+
+    #d = limits[1] - limits[0]
+    #x_coords = [uniform(limits[0], limits[0] + d / 4.0)
+    #            for i in range(num_samples / 2)]
+    #x_coords += [uniform(limits[1] - d / 4.0, limits[1])
+    #             for i in range(num_samples / 2)]
 
     gap = biggest_gap(x_coords, limits)
 
     noise = [gauss(0.0, noise_level) for i in range(num_samples)]
-    X = np.array(x_coords)
-    t = real_func(X) + np.array(noise)
+    X = np.array(x_coords, ndmin=2).T
+    noise_arr = np.array(noise, ndmin=2).T
+    t = real_func(X) + noise_arr
 
     precision = 200
 
@@ -185,20 +184,19 @@ if __name__ == '__main__':
     # Compute the kernel density estimates
     for i, val in enumerate(test_range):
         means[i], stds[i], confs[i], Ns[i] = \
-            kernel_regression(val, X, t, bandwidth)
+            kernel_regression(np.array(val), X, t, bandwidth)
 
     # Compute the error and add it to the list
     error = MSE(means, real_func(test_range))
     errors.append(error)
 
     # Plot the fit
-    ax1 = plt.subplot(221)
+    ax1 = plt.subplot(211)
     ax1.set_ylabel('KRE')
     plt.plot(test_range, real_func(test_range), color='r')
     plt.plot(test_range, means, color='y')
+    plt.scatter(X, t)
 
-    plt.ylim(-40, 60)
-    plt.xlim(limits[0], limits[1])
     plt.fill_between(test_range,
                      (means - stds / np.sqrt(Ns)),
                      (means + stds / np.sqrt(Ns)),
@@ -208,8 +206,9 @@ if __name__ == '__main__':
                      (means + 2 * stds),
                      color=[0.7, 0.7, 0.7, 0.7])
     plt.scatter(X.flat, t.flat)
+    plt.xlim(limits[0], limits[1])
 
-    plt.subplot(222, sharex=ax1)
+    plt.subplot(212, sharex=ax1)
     plt.plot(test_range, confs, label='confs')
     plt.plot(test_range, stds, label='stds')
     plt.legend()
