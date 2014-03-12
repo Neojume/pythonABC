@@ -103,9 +103,13 @@ def KRS_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
 
         while True:
             # Get mus and sigmas from Kernel regression
-            mu_bar, std, conf, N = kernel_regression(theta, xs, ts, h)
+            xs_a = np.array(xs, ndmin=2).T
+            ts_a = np.array(ts, ndmin=2).T
+
+            mu_bar, std, conf, N = kernel_regression(
+                np.array(theta), xs_a, ts_a, h)
             mu_bar_p, std_p, conf_p, N_p = kernel_regression(
-                theta_p, xs, ts, h)
+                np.array(theta_p), xs_a, ts_a, h)
 
             # Get samples
             mu = distr.normal.rvs(mu_bar, std / np.sqrt(N), M)
@@ -188,9 +192,8 @@ if __name__ == '__main__':
     from compare import variation_distance
 
     problem = wilkinson_problem()
-    for i in range(4):
-        samples, sim_calls, accepted = KRS_ABC(
-            problem, 10000, 0.05, 0.1, 100, 10, True)
+    samples, sim_calls, accepted = KRS_ABC(
+        problem, 10000, 0.05, 0.1, 30, 10, True, save=False)
 
     rng = np.linspace(problem.rng[0], problem.rng[1], 200)
     plt.hist(samples, bins=100, normed=True)
