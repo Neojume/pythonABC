@@ -5,7 +5,15 @@ import pickle
 
 class ABCData(object):
 
-    def __init__(self):
+    def __init__(self, algorithm, alg_args, problem):
+        '''
+        Create a data-container for this combination.
+        '''
+
+        self.algorithm = algorithm
+        self.alg_args = alg_args
+        self.problem = problem
+
         self.num_data = 0
         self.list_of_samples = []
         self.list_of_accepts = []
@@ -96,7 +104,7 @@ def save(algorithm, alg_args, problem, datum):
         with open(path, 'rb') as f:
             data = pickle.load(f)
     else:
-        data = ABCData()
+        data = ABCData(algorithm, alg_args, problem)
 
     data.add_datum(datum)
 
