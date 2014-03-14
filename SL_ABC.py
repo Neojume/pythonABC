@@ -54,13 +54,16 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
     sim_calls = []
 
     theta = problem.theta_init
-    log_theta = np.log(theta)
+    if use_log:
+        log_theta = np.log(theta)
 
     for i in xrange(num_samples):
         # Sample theta_p from proposal
-        theta_p = proposal.rvs(log_theta, *proposal_args)
         if use_log:
+            theta_p = proposal.rvs(log_theta, *proposal_args)
             log_theta_p = np.log(theta_p)
+        else:
+            theta_p = proposal.rvs(theta, *proposal_args)
 
         # Get S samples from simulator
         x = [simulator(theta) for s in xrange(S)]
@@ -97,8 +100,9 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
 
         if distr.uniform.rvs(0.0, 1.0) <= np.exp(log_alpha):
             accepted.append(True)
-            log_theta = log_theta_p
             theta = theta_p
+            if use_log:
+                log_theta = log_theta_p
         else:
             accepted.append(False)
 
@@ -134,6 +138,6 @@ if __name__ == '__main__':
 
     precision = 100
     test_range = np.linspace(0.07, 0.13, 100)
-    plt.plot(test_range, np.exp(post.logdf(test_range, *post_args)))
+    plt.plot(test_range, np.exp(post.logpdf(test_range, *post_args)))
     plt.hist(samples[1500:], 100, normed=True, alpha=0.5)
     plt.show()
