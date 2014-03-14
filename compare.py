@@ -56,10 +56,6 @@ def variation_distance(samples, problem, num_bins=100):
         normed_bins = approx_bins / denom
         diff[i] = 0.5 * w * (sum(abs(normed_bins - true_bins)) + missed / denom)
 
-    plt.bar(edges[:-1], true_bins, w, alpha=0.5)
-    plt.bar(edges[:-1], approx_bins / denom, w, alpha=0.5)
-    plt.show()
-
     return diff
 
 
