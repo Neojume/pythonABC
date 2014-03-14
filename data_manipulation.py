@@ -2,7 +2,9 @@ import os.path
 import os
 import pickle
 
+
 class ABCData(object):
+
     def __init__(self):
         self.num_data = 0
         self.list_of_samples = []
@@ -19,7 +21,11 @@ class ABCData(object):
             self.list_of_accepts.append(data[2])
         self.num_data += 1
 
+
 def get_filename(algorithm, alg_args, problem):
+    '''
+    Creates a unique filename for this algorithm + problem combination.
+    '''
     # Create filename
     filename = type(problem).__name__ + '_' + algorithm.__name__
     for arg in alg_args:
@@ -27,9 +33,59 @@ def get_filename(algorithm, alg_args, problem):
     filename += '.abc'
     return filename
 
+
+def load(algorithm, alg_args, problem):
+    '''
+    Loads the results for the given algorithm with given parameters for
+    the given problem. If there are no results for these combinations None is
+    returned.
+
+    Parameters
+    ----------
+    algorithm :
+        An instance of an ABC algorithm
+
+    alg_args : list
+        List of arguments for the given algorithm.
+
+    problem : ABC_Problem
+        The problem to solve
+
+    Returns
+    -------
+    data : ABCData or None
+        The loaded data. Or None if there is no data.
+    '''
+
+    filename = get_filename(algorithm, alg_args, problem)
+
+    path = os.path.join(os.getcwd(), 'data', filename)
+    if os.path.isfile(path):
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+        return data
+    else:
+        return None
+
+
 def save(algorithm, alg_args, problem, datum):
     '''
-    Save the results from an ABC run.
+    Saves the results for the given algorithm with given parameters for
+    the given problem.
+
+    Parameters
+    ----------
+    algorithm :
+        An instance of an ABC algorithm
+
+    alg_args : list
+        List of arguments for the given algorithm.
+
+    problem : ABC_Problem
+        The problem to solve
+
+    datum : tuple
+        The data to save
     '''
 
     filename = get_filename(algorithm, alg_args, problem)
@@ -37,15 +93,12 @@ def save(algorithm, alg_args, problem, datum):
     # Check if file already exists, if so add to the database
     path = os.path.join(os.getcwd(), 'data', filename)
     if os.path.isfile(path):
-        f = open(path, 'rb')
-        data = pickle.load(f)
-        f.close()
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
     else:
         data = ABCData()
 
     data.add_datum(datum)
 
-    f = open(path, 'wb')
-    pickle.dump(data, f)
-    f.close()
-
+    with open(path, 'wb') as f:
+        pickle.dump(data, f)
