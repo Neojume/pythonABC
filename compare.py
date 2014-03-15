@@ -47,14 +47,13 @@ def variation_distance(samples, problem, num_bins=100):
         if sample < rng[0] or sample > rng[1]:
             missed += 1
         else:
-            for b, edge in enumerate(edges):
-                if sample < edge:
-                    approx_bins[b - 1] += 1
-                    break
+            b = np.searchsorted(edges, sample)
+            approx_bins[b - 1] += 1
 
         denom += w
         normed_bins = approx_bins / denom
-        diff[i] = 0.5 * w * (sum(abs(normed_bins - true_bins)) + missed / denom)
+        diff[i] = 0.5 * w * \
+            (sum(abs(normed_bins - true_bins)) + missed / denom)
 
     return diff
 
@@ -214,6 +213,8 @@ def call_and_plot_distances(
 
     ax1.legend()
     ax2.legend()
+    ax1.set_xscale('log')
+    ax2.set_xscale('log')
 
 
 if __name__ == '__main__':
@@ -224,32 +225,32 @@ if __name__ == '__main__':
     from reject_ABC import reject_ABC
     from problems import *
 
-    problem = wilkinson_problem()
+    problem = toy_problem()
 
     num_samples = 40000
-    repeats = 2
+    repeats = 10
 
     methods = []
     method_args = []
     method_labels = []
 
-    # methods.append(ASL_ABC)
-    # method_labels.append('ASL_ABC')
-    #method_args.append([0.05, 0.1, 5, 5])
+    methods.append(ASL_ABC)
+    method_labels.append('ASL_ABC')
+    method_args.append([0.0, 0.05, 5, 5])
 
-    # methods.append(SL_ABC)
-    #method_labels.append('SL_ABC 2')
-    #method_args.append([0.05, 2, True])
+    methods.append(SL_ABC)
+    method_labels.append('SL_ABC')
+    method_args.append([0.0, 10])
 
-    methods.append(marginal_ABC)
-    method_labels.append('marginal ABC')
-    method_args.append([0.05, 500, True])
+    #methods.append(marginal_ABC)
+    #method_labels.append('marginal ABC')
+    #method_args.append([0.05, 250])
 
-    methods.append(pseudo_marginal_ABC)
-    method_labels.append('pseudo marginal ABC')
-    method_args.append([0.05, 1000, True])
+    #methods.append(pseudo_marginal_ABC)
+    #method_labels.append('pseudo marginal ABC')
+    #method_args.append([0.05, 500])
 
-    # methods.append(reject_ABC)
+    #methods.append(reject_ABC)
     #method_labels.append('reject_ABC 0.1')
     #method_args.append([0.1, True])
 
