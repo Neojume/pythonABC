@@ -69,6 +69,9 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
     enough data points for either the number of repeats or number of samples,
     additional data points are added (functions are called)
 
+    The left plot is the number of samples against the error. The right plot is
+    the number of simulation calls against the error.
+
     Arguments
     ---------
     problem : instance of ABC_Problem
@@ -89,6 +92,11 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
        Default True.
     verbose : bool
         If True prints iteration numbers, default False.
+
+    Returns
+    -------
+    ax1, ax2 : tuple
+        The axis handles of the two created figures
     '''
 
     ax1 = plt.subplot(121)
@@ -173,3 +181,5 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
     ax2.legend()
     ax1.set_xscale('log')
     ax2.set_xscale('log')
+
+    return ax1, ax2
