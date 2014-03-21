@@ -60,6 +60,7 @@ class exponential_problem(ABC_Problem):
 
 
 class wilkinson_problem(ABC_Problem):
+
     '''
     Toy problem of Richard Wilkinson from his NIPS tutorial.
     '''
@@ -72,7 +73,8 @@ class wilkinson_problem(ABC_Problem):
         self.prior_args = [-10, 10]
 
         self.true_posterior_rng = [-3.5, 3.5]
-        proportional = lambda x: distr.normal.pdf(self.y_star, self.true_function(x), 0.1 + x ** 2)
+        proportional = lambda x: distr.normal.pdf(
+            self.y_star, self.true_function(x), 0.1 + x ** 2)
         self.true_posterior = distr.generic_posterior(proportional)
         self.true_posterior_args = []
 
@@ -93,6 +95,7 @@ class wilkinson_problem(ABC_Problem):
 
 
 class sinus_problem(ABC_Problem):
+
     '''
     Sinus problem.
     '''
@@ -111,7 +114,8 @@ class sinus_problem(ABC_Problem):
         self.use_log = False
 
         self.true_posterior_rng = self.rng
-        proportional = lambda x: distr.normal.pdf(self.y_star, self.true_function(x), 0.2)
+        proportional = lambda x: distr.normal.pdf(
+            self.y_star, self.true_function(x), 0.2)
         self.true_posterior = distr.generic_posterior(proportional)
         self.true_posterior_args = []
 
