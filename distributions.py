@@ -8,10 +8,44 @@ Created on Mon Feb 03 17:59:08 2014
 @author: Steven
 """
 
+import collections
 import numpy as np
-import scipy.special as special
 import pylab as pp
+import scipy.special as special
+from scipy.integrate import quad
 
+
+class generic_posterior(object):
+    '''
+    Generic posterior class that computes the posterior using a function
+    that is proportional to the posterior and precalculating the normalization.
+    '''
+
+    def __init__(proportional_posterior):
+        '''
+        Initialize this posterior class by precalculating the normalization.
+
+        Arguments
+        ---------
+        proportional_posterior : function
+            Function that is proportional to the computed posterior
+        '''
+
+        self.normalization, _ = quad(
+            self.proportional_posterior,
+            -np.inf,
+            np.inf)
+        self.proportional_posterior = proportional_posterior
+
+    def pdf(self, x):
+        return self.proportional_posterior / self.normalization
+
+    def cdf(self, x):
+        if isinstance(x, collections.Iterable):
+            val = np.array([quad(self.pdf, -np.inf, i)[0] for i in x])
+        else:
+            val = quad(self.pdf, -np.inf, x)[0]
+        return val
 
 class gamma(object):
     @staticmethod
