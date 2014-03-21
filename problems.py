@@ -72,8 +72,8 @@ class wilkinson_problem(ABC_Problem):
         self.prior_args = [-10, 10]
 
         self.true_posterior_rng = [-3.5, 3.5]
-        self.true_posterior = distr.generic_posterior(
-            distr.normal.pdf(self.y_star, self.true_function(x), 0.1 + x ** 2))
+        proportional = lambda x: distr.normal.pdf(self.y_star, self.true_function(x), 0.1 + x ** 2)
+        self.true_posterior = distr.generic_posterior(proportional)
         self.true_posterior_args = []
 
         self.rng = [-10, 10]
@@ -111,8 +111,8 @@ class sinus_problem(ABC_Problem):
         self.use_log = False
 
         self.true_posterior_rng = self.rng
-        self.true_posterior = distr.generic_posterior(
-            distr.normal.pdf(self.y_star, self.true_function(x), 0.2))
+        proportional = lambda x: distr.normal.pdf(self.y_star, self.true_function(x), 0.2)
+        self.true_posterior = distr.generic_posterior(proportional)
         self.true_posterior_args = []
 
         self.theta_init = 0.5
