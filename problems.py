@@ -23,7 +23,7 @@ class ABC_Problem(object):
         raise NotImplemented
 
 
-class toy_problem(ABC_Problem):
+class exponential_problem(ABC_Problem):
 
     '''
     The exponential toy problem of Meeds and Welling.
@@ -60,38 +60,9 @@ class toy_problem(ABC_Problem):
 
 
 class wilkinson_problem(ABC_Problem):
-
-    class wilkinson_posterior(object):
-
-        def __init__(self, y_star, true_function):
-            # Calculate normalization beforehand
-            self.y_star = y_star
-            self.true_function = true_function
-            self.normalization, _ = quad(
-                self.proportional_posterior,
-                -np.inf,
-                np.inf)
-
-            #self.rng = np.linspace(-20, 20, 1000)
-            #self.cdf_list = [quad(self.pdf, -np.inf, i)[0] for i in self.rng]
-
-        def proportional_posterior(self, x):
-            return distr.normal.pdf(
-                self.y_star,
-                self.true_function(x),
-                0.1 + x ** 2)
-
-        def pdf(self, x):
-            return self.proportional_posterior(x) / self.normalization
-
-        def cdf(self, x):
-            #return np.interp(x, self.rng, self.cdf_list)
-
-            if isinstance(x, collections.Iterable):
-               val = np.array([quad(self.pdf, -np.inf, i)[0] for i in x])
-            else:
-               val = quad(self.pdf, -np.inf, x)[0]
-            return val
+    '''
+    Toy problem of Richard Wilkinson from his NIPS tutorial.
+    '''
 
     def __init__(self):
         self.y_star = 2.0
@@ -101,8 +72,8 @@ class wilkinson_problem(ABC_Problem):
         self.prior_args = [-10, 10]
 
         self.true_posterior_rng = [-3.5, 3.5]
-        self.true_posterior = wilkinson_problem.wilkinson_posterior(
-            self.y_star, self.true_function)
+        self.true_posterior = distr.generic_posterior(
+            distr.normal.pdf(self.y_star, self.true_function(x), 0.1 + x ** 2))
         self.true_posterior_args = []
 
         self.rng = [-10, 10]
@@ -122,37 +93,10 @@ class wilkinson_problem(ABC_Problem):
 
 
 class sinus_problem(ABC_Problem):
+    '''
+    Sinus problem.
+    '''
 
-    class sinus_posterior(object):
-
-        def __init__(self, y_star, true_function):
-            # Calculate normalization beforehand
-            self.y_star = y_star
-            self.true_function = true_function
-            self.normalization, _ = quad(
-                self.proportional_posterior,
-                -np.inf,
-                np.inf)
-
-            #self.rng = np.linspace(0, 4 * np.pi, 1000)
-            #self.cdf_list = [quad(self.pdf, -np.inf, i)[0] for i in self.rng]
-
-        def proportional_posterior(self, x):
-            return distr.normal.pdf(
-                self.y_star,
-                self.true_function(x), 0.2)
-
-        def pdf(self, x):
-            return self.proportional_posterior(x) / self.normalization
-
-        def cdf(self, x):
-            #return np.interp(x, self.rng, self.cdf_list)
-
-            if isinstance(x, collections.Iterable):
-               val = np.array([quad(self.pdf, -np.inf, i)[0] for i in x])
-            else:
-               val = quad(self.pdf, -np.inf, x)[0]
-            return val
     def __init__(self):
         self.y_star = 1.3
         self.y_dim = 1
@@ -167,8 +111,8 @@ class sinus_problem(ABC_Problem):
         self.use_log = False
 
         self.true_posterior_rng = self.rng
-        self.true_posterior = sinus_problem.sinus_posterior(
-            self.y_star, self.true_function)
+        self.true_posterior = distr.generic_posterior(
+            distr.normal.pdf(self.y_star, self.true_function(x), 0.2))
         self.true_posterior_args = []
 
         self.theta_init = 0.5
