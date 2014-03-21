@@ -5,14 +5,18 @@ import pickle
 
 class ABCData(object):
 
+    '''
+    Storage class for abc-data.
+    '''
+
     def __init__(self, algorithm, alg_args, problem):
         '''
         Create a data-container for this combination.
         '''
 
-        self.algorithm = algorithm
+        self.algorithm = algorithm.__name__
         self.alg_args = alg_args
-        self.problem = problem
+        self.problem = problem.__class__.__name__
 
         self.num_data = 0
         self.list_of_samples = []
@@ -34,11 +38,12 @@ def get_filename(algorithm, alg_args, problem):
     '''
     Creates a unique filename for this algorithm + problem combination.
     '''
-    # Create filename
     filename = type(problem).__name__ + '_' + algorithm.__name__
+
     for arg in alg_args:
         filename += '_' + str(arg)
     filename += '.abc'
+
     return filename
 
 
@@ -68,6 +73,7 @@ def load(algorithm, alg_args, problem):
     filename = get_filename(algorithm, alg_args, problem)
 
     path = os.path.join(os.getcwd(), 'data', filename)
+    print path
     if os.path.isfile(path):
         with open(path, 'rb') as f:
             data = pickle.load(f)
@@ -98,12 +104,13 @@ def save(algorithm, alg_args, problem, datum):
 
     filename = get_filename(algorithm, alg_args, problem)
 
-    # Check if file already exists, if so add to the database
     path = os.path.join(os.getcwd(), 'data', filename)
     if os.path.isfile(path):
+        # If file exists open and append to the existing database
         with open(path, 'rb') as f:
             data = pickle.load(f)
     else:
+        # Otherwise create a new database
         data = ABCData(algorithm, alg_args, problem)
 
     data.add_datum(datum)
