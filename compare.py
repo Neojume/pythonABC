@@ -98,14 +98,23 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
     ax2.set_xlabel('Number of simulation calls')
 
     for i, method in enumerate(methods):
-        # Allocate memory
         dist = np.zeros((num_samples, repeats))
         sim_calls = np.zeros((num_samples, repeats))
 
         filename = dm.get_filename(method, method_args[i], problem)
         path = os.path.join(os.getcwd(), 'data', filename)
-        with open(path, 'rb') as f:
-            alg_data = pickle.load(f)
+        try:
+            # Try to read from the database
+            with open(path, 'rb') as f:
+                alg_data = pickle.load(f)
+        except IOError:
+            # The file doesn't exist: run the experiments
+            for r in range(repeats):
+                method(problem, num_samples, *method_args[i])
+
+            # And load the data after
+            with open(path, 'rb') as f:
+                alg_data = pickle.load(f)
 
         data_index = 0
         array_index = 0
