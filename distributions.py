@@ -21,7 +21,7 @@ class generic_posterior(object):
     that is proportional to the posterior and precalculating the normalization.
     '''
 
-    def __init__(proportional_posterior):
+    def __init__(self, proportional_posterior):
         '''
         Initialize this posterior class by precalculating the normalization.
 
@@ -31,14 +31,14 @@ class generic_posterior(object):
             Function that is proportional to the computed posterior
         '''
 
+        self.proportional_posterior = proportional_posterior
         self.normalization, _ = quad(
             self.proportional_posterior,
             -np.inf,
             np.inf)
-        self.proportional_posterior = proportional_posterior
 
     def pdf(self, x):
-        return self.proportional_posterior / self.normalization
+        return self.proportional_posterior(x) / self.normalization
 
     def cdf(self, x):
         if isinstance(x, collections.Iterable):
