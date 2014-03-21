@@ -5,8 +5,6 @@ import distributions as distr
 from numpy import linalg
 import data_manipulation as dm
 
-import matplotlib.pyplot as plt
-
 
 def logsumexp(x, dim=0):
     '''
@@ -268,34 +266,7 @@ def marginal_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
         print ''
 
     if save:
-        dm.save(pseudo_marginal_ABC, [epsilon, S], problem,
+        dm.save(marginal_ABC, [epsilon, S], problem,
                 (samples, sim_calls, accepted))
 
     return samples, sim_calls, accepted
-
-if __name__ == '__main__':
-    from problems import toy_problem
-    from compare import variation_distance
-
-    problem = toy_problem()
-    samples, sim_calls, rate = \
-        pseudo_marginal_ABC(problem, 5000, 0.05, 50, True)
-
-    print 'sim_calls', sum(sim_calls)
-    print 'acceptance ratio', rate
-
-    post = problem.true_posterior
-    post_args = problem.true_posterior_args
-
-    diff = variation_distance(samples, problem)
-
-    print diff[-1]
-
-    # Create plots of how close we are
-    rng = np.linspace(0.07, 0.13, 100)
-    plt.hist(samples, bins=100, normed=True)
-    plt.plot(rng, np.exp(post.logpdf(rng, *post_args)))
-    plt.show()
-
-    plt.plot(diff)
-    plt.show()
