@@ -129,7 +129,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
 
         while array_index < repeats:
             print 'data entry', data_index
-            if data_index > len(alg_data.list_of_samples):
+            if data_index >= len(alg_data.list_of_samples):
                 if not call:
                     raise Exception('Not enough data points')
                 # Run the required additional experiments
