@@ -1,7 +1,7 @@
 import numpy as np
 import distributions as distr
-import matplotlib.pyplot as plt
 import data_manipulation as dm
+import sys
 
 
 def conditional_error(alphas, u, tau, M):
@@ -68,23 +68,29 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
 
     samples = []
     sim_calls = []
-    accepted = 0
+    accepted = []
 
     for i in range(num_samples):
         # Sample theta_p from proposal
-        theta_p = proposal.rvs(log_theta, *proposal_args)
-        log_theta_p = np.log(theta_p)
+        if use_log:
+            theta_p = proposal.rvs(log_theta, *proposal_args)
+            log_theta_p = np.log(theta_p)
+        else:
+            theta_p = proposal.rvs(theta, *proposal_args)
 
         # Calculate constant probs wrt mu_hat outside loop
         prior_logprob_p = prior.logpdf(theta_p, *prior_args)
         prior_logprob = prior.logpdf(theta, *prior_args)
 
         if use_log:
-            proposal_logprob = proposal.logpdf(theta, log_theta_p, *proposal_args)
-            proposal_logprob_p = proposal.logpdf(theta_p, log_theta, *proposal_args)
+            proposal_logprob = proposal.logpdf(
+                theta, log_theta_p, *proposal_args)
+            proposal_logprob_p = proposal.logpdf(
+                theta_p, log_theta, *proposal_args)
         else:
             proposal_logprob = proposal.logpdf(theta, theta_p, *proposal_args)
-            proposal_logprob_p = proposal.logpdf(theta_p, theta, *proposal_args)
+            proposal_logprob_p = proposal.logpdf(
+                theta_p, theta, *proposal_args)
 
         # Reset the samples
         x = []
@@ -174,18 +180,3 @@ def ASL_ABC(problem, num_samples, epsilon, ksi, S0, delta_S, verbose=False,
                 (samples, sim_calls, accepted))
 
     return samples, sim_calls, accepted
-
-if __name__ == '__main__':
-    from problems import toy_problem
-
-    problem = toy_problem()
-    samples, sim_calls, rate = ASL_ABC(problem, 10000, 0, 0.05, 5, 10)
-
-    print 'sim_calls', sum(sim_calls)
-    print 'acceptance rate', rate
-
-    rng = np.linspace(0.07, 0.13)
-    plt.hist(samples[1500:], bins=100, normed=True)
-    plt.plot(rng, problem.real_posterior(rng))
-
-    plt.show()
