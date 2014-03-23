@@ -5,16 +5,34 @@ import collections
 
 
 class ABC_Problem(object):
+    # The dimensionality and value of y_star
     y_star = None
     y_dim = None
 
+    # Prior distribution class and its arguments
     prior = None
     prior_args = None
 
+    # The range for the problem (used for visualisation)
+    rng = None
+
+    # Proposal distribution class and its arguments
     proposal = None
     proposal_args = None
 
+    # Whether the proposal distribution was specified in terms of
+    # log(theta)
+    use_log = None
+
+    # The initial value of theta
     theta_init = None
+
+    # The true posterior distribution class and its arguments.
+    # Optional:
+    # Note that this is used for comparison of convergence.
+    true_posterior_rng = None
+    true_posterior = None
+    true_posterior_args = None
 
     def simulator(self, theta):
         raise NotImplemented
@@ -24,7 +42,6 @@ class ABC_Problem(object):
 
 
 class exponential_problem(ABC_Problem):
-
     '''
     The exponential toy problem of Meeds and Welling.
     '''
@@ -60,7 +77,6 @@ class exponential_problem(ABC_Problem):
 
 
 class wilkinson_problem(ABC_Problem):
-
     '''
     Toy problem of Richard Wilkinson from his NIPS tutorial.
     '''
@@ -75,7 +91,7 @@ class wilkinson_problem(ABC_Problem):
         self.true_posterior_rng = [-3.5, 3.5]
         proportional = lambda x: distr.normal.pdf(
             self.y_star, self.true_function(x), 0.1 + x ** 2)
-        self.true_posterior = distr.generic_posterior(proportional)
+        self.true_posterior = distr.proportional(proportional)
         self.true_posterior_args = []
 
         self.rng = [-10, 10]
@@ -95,7 +111,6 @@ class wilkinson_problem(ABC_Problem):
 
 
 class sinus_problem(ABC_Problem):
-
     '''
     Sinus problem.
     '''
@@ -116,7 +131,7 @@ class sinus_problem(ABC_Problem):
         self.true_posterior_rng = self.rng
         proportional = lambda x: distr.normal.pdf(
             self.y_star, self.true_function(x), 0.2)
-        self.true_posterior = distr.generic_posterior(proportional)
+        self.true_posterior = distr.proportional(proportional)
         self.true_posterior_args = []
 
         self.theta_init = 0.5
