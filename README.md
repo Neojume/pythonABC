@@ -2,8 +2,8 @@ Python-ABC
 ----------
 A python implementation of some ABC algorithms.
 
-Algorithm
----------
+Algorithms
+----------
 
 The following algorithms are currently implemented:
 - ABC rejection sampling
