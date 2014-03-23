@@ -1,9 +1,8 @@
 Python-ABC
-==========
+----------
 A python implementation of some ABC algorithms.
 
-Algorithms
-----------
+*Algorithms*
 The following algorithms are currently implemented:
 - ABC rejection sampling
 - Pseudo Marginal ABC Sampler
