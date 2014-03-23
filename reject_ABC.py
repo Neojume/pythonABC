@@ -1,4 +1,3 @@
-import distributions as distr
 import data_manipulation as dm
 
 
@@ -52,6 +51,7 @@ def reject_ABC(problem, num_samples, epsilon, verbose=True, save=True):
             current_sim_calls += 1
 
             # Calculate error
+            # TODO: use statistics and arbitrary compare method
             error = abs(y_star - y)
 
         # Accept the sample
@@ -66,22 +66,3 @@ def reject_ABC(problem, num_samples, epsilon, verbose=True, save=True):
         dm.save(reject_ABC, [epsilon], problem, (samples, sim_calls))
 
     return samples, sim_calls
-
-if __name__ == '__main__':
-    from problems import toy_problem, sinus_problem
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    problem = sinus_problem()
-
-    samples, sim_calls = reject_ABC(problem, 10000, 0.05)
-
-    print 'sim_calls', sum(sim_calls)
-
-    precision = 100
-    test_range = np.linspace(0.07, 0.13, 100)
-    post = problem.true_posterior
-    post_args = problem.true_posterior_args
-    plt.plot(test_range, np.exp(post.logpdf(test_range, *post_args)))
-    plt.hist(samples[1500:], 100, normed=True, alpha=0.5)
-    plt.show()
