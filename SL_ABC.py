@@ -122,22 +122,3 @@ def SL_ABC(problem, num_samples, epsilon, S, verbose=False, save=True):
         dm.save(SL_ABC, [epsilon, S], problem, (samples, sim_calls, accepted))
 
     return samples, sim_calls, accepted
-
-if __name__ == '__main__':
-    from problems import toy_problem
-
-    problem = toy_problem()
-
-    samples, sim_calls, acceptance_rate = SL_ABC(problem, 10000, 0, 10, True)
-
-    print 'sim_calls', sum(sim_calls)
-    print 'acceptance rate', acceptance_rate
-
-    post = problem.true_posterior
-    post_args = problem.true_posterior_args
-
-    precision = 100
-    test_range = np.linspace(0.07, 0.13, 100)
-    plt.plot(test_range, np.exp(post.logpdf(test_range, *post_args)))
-    plt.hist(samples[1500:], 100, normed=True, alpha=0.5)
-    plt.show()
