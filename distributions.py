@@ -15,30 +15,31 @@ import scipy.special as special
 from scipy.integrate import quad
 
 
-class generic_posterior(object):
+class proportional(object):
     '''
-    Generic posterior class that computes the posterior using a function
-    that is proportional to the posterior and precalculating the normalization.
+    Distribution class that computes the pdf and cdf values using a function
+    that is proportional to the true probability density.
     '''
 
-    def __init__(self, proportional_posterior):
+    def __init__(self, proportional_function):
         '''
-        Initialize this posterior class by precalculating the normalization.
+        Initialize this distribution class by precalculating the normalization
+        constant.
 
         Arguments
         ---------
-        proportional_posterior : function
-            Function that is proportional to the computed posterior
+        proportional : function
+            Function that is proportional to the computed distribution
         '''
 
-        self.proportional_posterior = proportional_posterior
+        self.proportional_function = proportional_function
         self.normalization, _ = quad(
-            self.proportional_posterior,
+            self.proportional_function,
             -np.inf,
             np.inf)
 
     def pdf(self, x):
-        return self.proportional_posterior(x) / self.normalization
+        return self.proportional_function(x) / self.normalization
 
     def cdf(self, x):
         if isinstance(x, collections.Iterable):
