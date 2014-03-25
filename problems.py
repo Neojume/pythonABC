@@ -1,7 +1,7 @@
 import distributions as distr
 import numpy as np
 
-__all__ = ['exponential_problem', 'wilkinson_problem', 'sinus_problem']
+__all__ = ['Exponential_Problem', 'Wilkinson_Problem', 'Sinus_Problem']
 
 
 class ABC_Problem(object):
@@ -41,7 +41,7 @@ class ABC_Problem(object):
         raise NotImplemented
 
 
-class exponential_problem(ABC_Problem):
+class Exponential_Problem(ABC_Problem):
 
     '''
     The exponential toy problem of Meeds and Welling.
@@ -77,7 +77,7 @@ class exponential_problem(ABC_Problem):
         return 1.0 / theta
 
 
-class wilkinson_problem(ABC_Problem):
+class Wilkinson_Problem(ABC_Problem):
 
     '''
     Toy problem of Richard Wilkinson from his NIPS tutorial.
@@ -112,10 +112,10 @@ class wilkinson_problem(ABC_Problem):
         return distr.normal.rvs(mu, 0.1 + theta ** 2)[0]
 
 
-class sinus_problem(ABC_Problem):
+class Sinus_Problem(ABC_Problem):
 
     '''
-    Sinus problem.
+    Sinusoid problem.
     '''
 
     def __init__(self):
