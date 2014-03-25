@@ -1,5 +1,5 @@
 '''
-Implements different MCMC algorithms for Approximate Bayesian
+Implements different algorithms for Approximate Bayesian
 Computation.
 
 @author Steven
@@ -13,10 +13,11 @@ import distributions as distr
 import data_manipulation as dm
 from utils import logsumexp, conditional_error
 
+
 class Base_ABC_Algorithm(object):
 
     '''
-    Abstract base class for a ABC algorithm.
+    Abstract base class for ABC algorithms.
     '''
 
     __metaclass__ = ABCMeta
@@ -51,7 +52,7 @@ class Base_ABC_Algorithm(object):
 
         return s
 
-    def get_args(self):
+    def get_parameters(self):
         '''
         Returns the list of parameter values. Order is determined by
         `self.needed_params`.
@@ -76,7 +77,12 @@ class Base_ABC_Algorithm(object):
     def run(self):
         return NotImplemented
 
+
 class Reject_ABC(Base_ABC_Algorithm):
+
+    '''
+    A simple rejection sampler.
+    '''
 
     def __init__(self, problem, num_samples, epsilon, **kwargs):
         '''
@@ -94,7 +100,8 @@ class Reject_ABC(Base_ABC_Algorithm):
                 If set to true iteration number as well as number of
                 simulation calls will be printed.
             save : bool
-                If True will save the result to a (possibly exisisting) database
+                If True will save the result to a (possibly exisisting)
+                database
         '''
         super(Reject_ABC, self).__init__(problem, num_samples, **kwargs)
 
@@ -124,6 +131,10 @@ class Reject_ABC(Base_ABC_Algorithm):
             self.samples.append(x)
             self.sim_calls.append(self.current_sim_calls)
 
+        # Print a newline
+        if self.verbose:
+            print ''
+
 
 class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
 
@@ -137,6 +148,9 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
                  **kwargs):
         super(Base_MCMC_ABC_Algorithm, self).__init__(
             problem, num_samples, verbose, save)
+
+        assert isinstance(problem, ABC_Problem), \
+            'Problem is not an instance of ABC_Problem'
 
         self.proposal = problem.proposal
         self.proposal_args = problem.proposal_args
@@ -161,7 +175,6 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
             Whether the sample was accepted
         '''
         return NotImplemented
-
 
     def run(self):
         '''
@@ -221,7 +234,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
             self.save()
 
 
-class marginal_ABC(Base_MCMC_ABC_Algorithm):
+class Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -255,7 +268,7 @@ class marginal_ABC(Base_MCMC_ABC_Algorithm):
            http://arxiv.org/abs/1401.2838
         '''
 
-        super(marginal_ABC, self).__init__(problem, num_samples, **params)
+        super(Marginal_ABC, self).__init__(problem, num_samples, **params)
 
         self.needed_params = ['epsilon', 'S']
         assert set(self.needed_params).issubset(params.keys()), \
@@ -293,7 +306,7 @@ class marginal_ABC(Base_MCMC_ABC_Algorithm):
         return distr.uniform.rvs(0, 1) <= np.exp(log_alpha)
 
 
-class pseudo_marginal_ABC(Base_MCMC_ABC_Algorithm):
+class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -326,7 +339,7 @@ class pseudo_marginal_ABC(Base_MCMC_ABC_Algorithm):
            Computation. E. Meeds and M. Welling.
            http://arxiv.org/abs/1401.2838
         '''
-        super(pseudo_marginal_ABC, self).__init__(problem, num_samples,
+        super(Pseudo_Marginal_ABC, self).__init__(problem, num_samples,
                                                   **params)
         self.needed_params = ['epsilon', 'S']
         assert set(self.needed_params).issubset(params.keys()), \
@@ -581,17 +594,3 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
         self.current_sim_calls = 2 * S
 
         return distr.uniform.rvs(0.0, 1.0) <= tau
-
-
-if __name__ == '__main__':
-    from problems import wilkinson_problem
-    import matplotlib.pyplot as plt
-
-    problem = wilkinson_problem()
-
-    alg = Reject_ABC(problem, 10000, epsilon=0.15,
-                  save=False, verbose=True)
-    alg.run()
-
-    plt.hist(np.array(alg.samples), 100)
-    plt.show()
