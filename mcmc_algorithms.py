@@ -1,3 +1,9 @@
+'''
+Implements different MCMC algorithms for Approximate Bayesian
+Computation.
+
+@author Steven
+'''
 import sys
 import numpy as np
 from numpy import linalg
