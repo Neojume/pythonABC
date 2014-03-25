@@ -9,45 +9,48 @@ class ABCData(object):
     Storage class for abc-data.
     '''
 
-    def __init__(self, algorithm, alg_args, problem):
+    def __init__(self, algorithm):
         '''
         Create a data-container for this combination.
         '''
 
-        self.algorithm = algorithm.__name__
-        self.alg_args = alg_args
-        self.problem = problem.__class__.__name__
+        self.algorithm = type(algorithm).__name__
+        self.alg_args = algorithm.get_args()
+        self.problem = type(algorithm.problem).__name__
 
         self.num_data = 0
         self.list_of_samples = []
         self.list_of_accepts = []
         self.list_of_sim_calls = []
 
-    def add_datum(self, data):
+    def add_datum(self, algorithm):
         '''
         Add data to the database.
         '''
-        self.list_of_samples.append(data[0])
-        self.list_of_sim_calls.append(data[1])
-        if len(data) > 2:
-            self.list_of_accepts.append(data[2])
+        self.list_of_samples.append(algorithm.samples)
+        self.list_of_sim_calls.append(algorithm.sim_calls)
+        try:
+            self.list_of_accepts.append(algorithm.accepted)
+        except AttributeError:
+            # Algorithm has no accepted attribute
+            pass
         self.num_data += 1
 
 
-def get_filename(algorithm, alg_args, problem):
+def get_filename(algorithm):
     '''
-    Creates a unique filename for this algorithm + problem combination.
+    Creates a unique filename for this algorithm.
+
+    Arguments
+    ---------
+    algorithm : instance of an `ABC_Algorithm`
+        The algorithm instance to generate a name for.
     '''
-    filename = type(problem).__name__ + '_' + algorithm.__name__
 
-    for arg in alg_args:
-        filename += '_' + str(arg)
-    filename += '.abc'
-
-    return filename
+    return str(algorithm) + '.abc'
 
 
-def load(algorithm, alg_args, problem):
+def load(algorithm):
     '''
     Loads the results for the given algorithm with given parameters for
     the given problem. If there are no results for these combinations None is
@@ -58,19 +61,13 @@ def load(algorithm, alg_args, problem):
     algorithm :
         An instance of an ABC algorithm
 
-    alg_args : list
-        List of arguments for the given algorithm.
-
-    problem : ABC_Problem
-        The problem to solve
-
     Returns
     -------
     data : ABCData or None
         The loaded data. Or None if there is no data.
     '''
 
-    filename = get_filename(algorithm, alg_args, problem)
+    filename = get_filename(algorithm)
 
     path = os.path.join(os.getcwd(), 'data', filename)
     print path
@@ -82,7 +79,7 @@ def load(algorithm, alg_args, problem):
         return None
 
 
-def save(algorithm, alg_args, problem, datum):
+def save(algorithm):
     '''
     Saves the results for the given algorithm with given parameters for
     the given problem.
@@ -91,18 +88,9 @@ def save(algorithm, alg_args, problem, datum):
     ----------
     algorithm :
         An instance of an ABC algorithm
-
-    alg_args : list
-        List of arguments for the given algorithm.
-
-    problem : ABC_Problem
-        The problem to solve
-
-    datum : tuple
-        The data to save
     '''
 
-    filename = get_filename(algorithm, alg_args, problem)
+    filename = get_filename(algorithm)
 
     path = os.path.join(os.getcwd(), 'data', filename)
     if os.path.isfile(path):
@@ -111,9 +99,9 @@ def save(algorithm, alg_args, problem, datum):
             data = pickle.load(f)
     else:
         # Otherwise create a new database
-        data = ABCData(algorithm, alg_args, problem)
+        data = ABCData(algorithm)
 
-    data.add_datum(datum)
+    data.add_datum(algorithm)
 
     with open(path, 'wb') as f:
         pickle.dump(data, f)
