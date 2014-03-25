@@ -13,19 +13,19 @@ import distributions as distr
 import data_manipulation as dm
 from utils import logsumexp, conditional_error
 
-
-class Base_MCMC_ABC(object):
+class Base_ABC_Algorithm(object):
 
     '''
-    Abstract base class for MCMC ABC.
+    Abstract base class for a ABC algorithm.
     '''
 
     __metaclass__ = ABCMeta
 
     def __init__(self, problem, num_samples, verbose=False, save=True,
                  **kwargs):
-
         self.problem = problem
+        self.num_samples = num_samples
+
         self.y_star = problem.y_star
         self.y_dim = problem.y_dim
 
@@ -34,24 +34,15 @@ class Base_MCMC_ABC(object):
         self.prior = problem.prior
         self.prior_args = problem.prior_args
 
-        self.proposal = problem.proposal
-        self.proposal_args = problem.proposal_args
-        self.use_log = problem.use_log
-
-        self.theta = problem.theta_init
-        if self.use_log:
-            self.log_theta = np.log(self.theta)
-
-        self.num_samples = num_samples
         self.samples = []
         self.sim_calls = []
-        self.accepted = []
-        self.current_sim_calls = 0
 
         self.verbose = verbose
         self.save = save
 
         self.needed_params = []
+
+        self.current_sim_calls = 0
 
     def __repr__(self):
         s = type(self.problem).__name__ + '_' + type(self).__name__
@@ -75,6 +66,88 @@ class Base_MCMC_ABC(object):
         '''
         dm.save(self)
 
+    def verbosity(self, i, interval=200):
+        if self.verbose and i % interval == 0:
+            sys.stdout.write('\r%s iteration %d %d' %
+                             (type(self).__name__, i, sum(self.sim_calls)))
+            sys.stdout.flush()
+
+    @abstractmethod
+    def run(self):
+        return NotImplemented
+
+class Reject_ABC(Base_ABC_Algorithm):
+
+    def __init__(self, problem, num_samples, epsilon, **kwargs):
+        '''
+        Creates an instance of rejection ABC for the given problem.
+
+        Parameters
+        ----------
+            problem : ABC_Problem instance
+                The problem to solve An instance of the ABC_Problem class.
+            num_samples : int
+                The number of samples to sample.
+            epsilon : float
+                The error margin or epsilon-tube.
+            verbose : bool
+                If set to true iteration number as well as number of
+                simulation calls will be printed.
+            save : bool
+                If True will save the result to a (possibly exisisting) database
+        '''
+        super(Reject_ABC, self).__init__(problem, num_samples, **kwargs)
+
+        self.needed_params = ['epsilon']
+        self.epsilon = epsilon
+
+    def run(self):
+        for i in xrange(self.num_samples):
+            self.verbosity(i)
+
+            self.current_sim_calls = 0
+            error = self.epsilon + 1.0
+
+            while error > self.epsilon:
+                # Sample x from the (uniform) prior
+                x = self.prior.rvs(*self.prior_args)
+
+                # Perform simulation
+                y = self.simulator(x)
+                self.current_sim_calls += 1
+
+                # Calculate error
+                # TODO: use statistics and arbitrary compare method
+                error = abs(self.y_star - y)
+
+            # Accept the sample
+            self.samples.append(x)
+            self.sim_calls.append(self.current_sim_calls)
+
+
+class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
+
+    '''
+    Abstract base class for MCMC ABC algorithms.
+    '''
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self, problem, num_samples, verbose=False, save=True,
+                 **kwargs):
+        super(Base_MCMC_ABC_Algorithm, self).__init__(
+            problem, num_samples, verbose, save)
+
+        self.proposal = problem.proposal
+        self.proposal_args = problem.proposal_args
+        self.use_log = problem.use_log
+
+        self.theta = problem.theta_init
+        if self.use_log:
+            self.log_theta = np.log(self.theta)
+
+        self.accepted = []
+
     @abstractmethod
     def mh_step(self):
         '''
@@ -89,11 +162,6 @@ class Base_MCMC_ABC(object):
         '''
         return NotImplemented
 
-    def verbosity(self):
-        if self.verbose and i % 200 == 0:
-            sys.stdout.write('\r%s iteration %d %d' %
-                             (type(self).__name__, i, sum(self.sim_calls)))
-            sys.stdout.flush()
 
     def run(self):
         '''
@@ -101,7 +169,7 @@ class Base_MCMC_ABC(object):
         '''
         for i in xrange(self.num_samples):
             # Print information if needed
-            self.verbosity()
+            self.verbosity(i)
 
             # Sample theta_p from proposal
             if self.use_log:
@@ -153,7 +221,7 @@ class Base_MCMC_ABC(object):
             self.save()
 
 
-class marginal_ABC(Base_MCMC_ABC):
+class marginal_ABC(Base_MCMC_ABC_Algorithm):
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -225,7 +293,7 @@ class marginal_ABC(Base_MCMC_ABC):
         return distr.uniform.rvs(0, 1) <= np.exp(log_alpha)
 
 
-class pseudo_marginal_ABC(Base_MCMC_ABC):
+class pseudo_marginal_ABC(Base_MCMC_ABC_Algorithm):
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -305,7 +373,7 @@ class pseudo_marginal_ABC(Base_MCMC_ABC):
         return distr.uniform.rvs(0, 1) <= np.exp(log_alpha)
 
 
-class SL_ABC(Base_MCMC_ABC):
+class SL_ABC(Base_MCMC_ABC_Algorithm):
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -383,7 +451,7 @@ class SL_ABC(Base_MCMC_ABC):
         return distr.uniform.rvs(0.0, 1.0) <= np.exp(log_alpha)
 
 
-class ASL_ABC(Base_MCMC_ABC):
+class ASL_ABC(Base_MCMC_ABC_Algorithm):
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -521,10 +589,9 @@ if __name__ == '__main__':
 
     problem = wilkinson_problem()
 
-    alg = ASL_ABC(problem, 10000, epsilon=0.05, S0=5, delta_S=5, ksi=0.05,
+    alg = Reject_ABC(problem, 10000, epsilon=0.15,
                   save=False, verbose=True)
     alg.run()
 
-    print sum(alg.accepted) / float(alg.num_samples)
     plt.hist(np.array(alg.samples), 100)
     plt.show()
