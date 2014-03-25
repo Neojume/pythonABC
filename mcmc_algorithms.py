@@ -67,9 +67,13 @@ class Base_MCMC_ABC(object):
         '''
         return [self.__dict__[par] for par in self.needed_params]
 
-    @abstractmethod
     def save(self):
-        return NotImplemented
+        '''
+        Saves the results of this algorithm.
+
+        Note: Should be called after a call to `run()`
+        '''
+        dm.save(self)
 
     @abstractmethod
     def mh_step(self):
@@ -85,12 +89,19 @@ class Base_MCMC_ABC(object):
         '''
         return NotImplemented
 
+    def verbosity(self):
+        if self.verbose and i % 200 == 0:
+            sys.stdout.write('\r%s iteration %d %d' %
+                             (type(self).__name__, i, sum(self.sim_calls)))
+            sys.stdout.flush()
+
     def run(self):
+        '''
+        Runs the algorithm.
+        '''
         for i in xrange(self.num_samples):
-            if self.verbose and i % 200 == 0:
-                sys.stdout.write('\r%s iteration %d %d' %
-                                 (type(self).__name__, i, sum(self.sim_calls)))
-                sys.stdout.flush()
+            # Print information if needed
+            self.verbosity()
 
             # Sample theta_p from proposal
             if self.use_log:
@@ -185,10 +196,6 @@ class marginal_ABC(Base_MCMC_ABC):
         self.S = params['S']
         self.epsilon = params['epsilon']
 
-    def save(self):
-        dm.save(marginal_ABC, [self.epsilon, self.S], self.problem,
-                (self.samples, self.sim_calls, self.accepted))
-
     def mh_step(self):
         diff = []
         diff_p = []
@@ -272,10 +279,6 @@ class pseudo_marginal_ABC(Base_MCMC_ABC):
         self.prev_diff_term = logsumexp(np.array(prev_diff))
         self.cur_sim_calls = self.S
 
-    def save(self):
-        dm.save(pseudo_marginal_ABC, [self.epsilon, self.S], self.problem,
-                (self.samples, self.sim_calls, self.accepted))
-
     def mh_step(self):
         diff_p = []
 
@@ -347,10 +350,6 @@ class SL_ABC(Base_MCMC_ABC):
         self.epsilon = params['epsilon']
 
         self.eps_eye = np.identity(self.y_dim) * self.epsilon ** 2
-
-    def save(self):
-        dm.save(SL_ABC, [self.epsilon, self.S], self.problem,
-                (self.samples, self.sim_calls, self.accepted))
 
     def mh_step(self):
         # Get S samples from simulator
@@ -451,10 +450,6 @@ class ASL_ABC(Base_MCMC_ABC):
 
         self.eye_eps = np.identity(self.y_dim) * self.epsilon ** 2
 
-    def save(self):
-        dm.save(ASL_ABC, [self.epsilon, self.ksi, self.S0, self.delta_S],
-                self.problem, (self.samples, self.sim_calls, self.accepted))
-
     def mh_step(self):
         # Reset the samples
         x = []
@@ -465,7 +460,8 @@ class ASL_ABC(Base_MCMC_ABC):
         while True:
             # Get additional samples from simulator
             x.extend([self.simulator(self.theta) for s in xrange(additional)])
-            x_p.extend([self.simulator(self.theta_p) for s in xrange(additional)])
+            x_p.extend([self.simulator(self.theta_p)
+                       for s in xrange(additional)])
 
             additional = self.delta_S
             S = len(x)
