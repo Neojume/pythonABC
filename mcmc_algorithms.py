@@ -18,6 +18,8 @@ class Base_MCMC_ABC(object):
 
     def __init__(self, problem, num_samples, verbose=False, save=True,
                  **kwargs):
+
+        self.problem = problem
         self.y_star = problem.y_star
         self.y_dim = problem.y_dim
 
@@ -42,6 +44,22 @@ class Base_MCMC_ABC(object):
 
         self.verbose = verbose
         self.save = save
+
+        self.needed_params = []
+
+    def __repr__(self):
+        s = type(self.problem).__name__ + '_' + type(self).__name__
+        for par in self.needed_params:
+            s += '_' + str(self.__dict__[par])
+
+        return s
+
+    def get_args(self):
+        '''
+        Returns the list of parameter values. Order is determined by
+        `self.needed_params`.
+        '''
+        return [self.__dict__[par] for par in self.needed_params]
 
     @abstractmethod
     def save(self):
@@ -129,12 +147,15 @@ class marginal_ABC(Base_MCMC_ABC):
         ----------
         problem : An instance of (a subclass of) `ABC_Problem`.
             The problem to solve.
+        num_samples : int
+            The number of samples to draw.
         epsilon : float
             Error margin.
         S : int
             Number of simulations per iteration.
-        num_samples : int
-            The number of samples to draw.
+
+        Optional Arguments
+        ------------------
         verbose : bool
             The verbosity of the algorithm. If `True`, will print iteration
             numbers and number of simulation calls. Default `False`.
@@ -151,8 +172,9 @@ class marginal_ABC(Base_MCMC_ABC):
 
         super(marginal_ABC, self).__init__(problem, num_samples, **params)
 
-        assert set(['S', 'epsilon']).issubset(params.keys()), \
-            'Not enough parameters: need S and epsilon'
+        self.needed_params = ['epsilon', 'S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
 
         self.S = params['S']
         self.epsilon = params['epsilon']
@@ -207,6 +229,9 @@ class pseudo_marginal_ABC(Base_MCMC_ABC):
             Number of simulations per iteration.
         num_samples : int
             The number of samples to draw.
+
+        Optional Arguments
+        ------------------
         verbose : bool
             The verbosity of the algorithm. If `True`, will print iteration
             numbers and number of simulation calls. Default `False`.
@@ -222,9 +247,9 @@ class pseudo_marginal_ABC(Base_MCMC_ABC):
         '''
         super(pseudo_marginal_ABC, self).__init__(problem, num_samples,
                                                   **params)
-
-        assert set(['S', 'epsilon']).issubset(params.keys()), \
-            'Not enough parameters: need S and epsilon'
+        self.needed_params = ['epsilon', 'S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
 
         self.S = params['S']
         self.epsilon = params['epsilon']
@@ -288,6 +313,9 @@ class SL_ABC(Base_MCMC_ABC):
             Number of simulations per iteration
         epsilon : float
             Error margin.
+
+        Optional Arguments
+        ------------------
         verbose : bool
             The verbosity of the algorithm. If `True`, will print iteration
             numbers and number of simulations. Default `False`.
@@ -305,13 +333,14 @@ class SL_ABC(Base_MCMC_ABC):
         '''
         super(SL_ABC, self).__init__(problem, num_samples, **params)
 
-        self.eye = np.identity(self.y_dim)
-
-        assert set(['S', 'epsilon']).issubset(params.keys()), \
-            'Not enough parameters: need S and epsilon'
+        self.needed_params = ['epsilon', 'S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
 
         self.S = params['S']
         self.epsilon = params['epsilon']
+
+        self.eps_eye = np.identity(self.y_dim) * self.epsilon ** 2
 
     def save(self):
         dm.save(SL_ABC, [self.epsilon, self.S], self.problem,
@@ -338,11 +367,11 @@ class SL_ABC(Base_MCMC_ABC):
         other_term = distr.normal.logpdf(
             self.y_star,
             mu_theta_p,
-            sigma_theta_p + (self.epsilon ** 2) * self.eye) - \
+            sigma_theta_p + self.eps_eye) - \
             distr.normal.logpdf(
                 self.y_star,
                 mu_theta,
-                sigma_theta + (self.epsilon ** 2) * self.eye)
+                sigma_theta + self.eps_eye)
 
         log_alpha = min(0.0, (numer - denom) + other_term)
 
@@ -370,18 +399,18 @@ class ASL_ABC(Base_MCMC_ABC):
             Number of initial simulations per iteration
         delta_S : int
             Number of additional simulations
+
+        Note that while epsilon, ksi, S0 and delta_S are keyword-arguments,
+        they are necessary.
+
+        Optional Arguments
+        ------------------
         verbose : bool
             The verbosity of the algorithm. If `True`, will print iteration
             numbers and number of simulations. Default `False`.
         save : bool
             If `True`, results will be stored in a possibly existing database
             Default `True`.
-
-        Note that while epsilon, ksi, S0 and delta_S are keyword-arguments,
-        they are necessary.
-
-        Optional Parameters
-        -------------------
         M : int
             Number of samples to approximate mu_hat. Default 50.
         E : int
@@ -395,9 +424,9 @@ class ASL_ABC(Base_MCMC_ABC):
         '''
         super(ASL_ABC, self).__init__(problem, num_samples, **params)
 
-        needed_params = ['S0', 'epsilon', 'ksi', 'delta_S']
-        assert set(needed_params).issubset(params.keys()), \
-            'Not enough parameters: Need {0}'.format(str(needed_params))
+        self.needed_params = ['epsilon', 'ksi', 'S0', 'delta_S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
 
         self.S0 = params['S0']
         self.epsilon = params['epsilon']
