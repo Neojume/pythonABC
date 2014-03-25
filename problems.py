@@ -1,7 +1,7 @@
 import distributions as distr
 import numpy as np
-from scipy.integrate import quad
-import collections
+
+__all__ = ['exponential_problem', 'wilkinson_problem', 'sinus_problem']
 
 
 class ABC_Problem(object):
@@ -42,6 +42,7 @@ class ABC_Problem(object):
 
 
 class exponential_problem(ABC_Problem):
+
     '''
     The exponential toy problem of Meeds and Welling.
     '''
@@ -77,6 +78,7 @@ class exponential_problem(ABC_Problem):
 
 
 class wilkinson_problem(ABC_Problem):
+
     '''
     Toy problem of Richard Wilkinson from his NIPS tutorial.
     '''
@@ -111,6 +113,7 @@ class wilkinson_problem(ABC_Problem):
 
 
 class sinus_problem(ABC_Problem):
+
     '''
     Sinus problem.
     '''
