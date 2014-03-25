@@ -62,7 +62,7 @@ def variation_distance(samples, problem, num_bins=100):
     return diff
 
 
-def plot_distances(problem, num_samples, methods, method_args, method_labels,
+def plot_distances(problem, num_samples, algorithms, algorithm_labels,
                    repeats=1, call=True, verbose=False):
     '''
     Retrieves results from data files and plots the results. If there are not
@@ -78,13 +78,13 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
         The problem we're trying to solve.
     num_samples : int
         The number of samples to draw.
-    methods : list
-        List of methods to plot the curves of.
-    method_args : list of lists
-        Additional arguments for the different methods. problem and number of
-        samples will always be passed to the methods.
-    method_labels : list of strings
+    algorithms : list
+        List of algorithms to plot the curves of.
+    algorithm_labels : list of strings
         Labels for the legend of the plot.
+
+    Optional Arguments
+    ------------------
     repeats : int
         Number of times runs are repeated.
     call : bool
@@ -105,11 +105,11 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
     ax2 = plt.subplot(122, sharey=ax1)
     ax2.set_xlabel('Number of simulation calls')
 
-    for i, method in enumerate(methods):
+    for i, algorithm in enumerate(algorithms):
         dist = np.zeros((num_samples, repeats))
         sim_calls = np.zeros((num_samples, repeats))
 
-        filename = dm.get_filename(method, method_args[i], problem)
+        filename = dm.get_filename(algorithm)
         path = os.path.join(os.getcwd(), 'data', filename)
         try:
             # Try to read from the database
@@ -118,7 +118,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
         except IOError:
             # The file doesn't exist: run the experiments
             for r in range(repeats):
-                method(problem, num_samples, *method_args[i])
+                algorithm.run()
 
             # And load the data after
             with open(path, 'rb') as f:
@@ -134,7 +134,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
                     raise Exception('Not enough data points')
                 # Run the required additional experiments
                 for r in range(repeats - array_index):
-                    method(problem, num_samples, *method_args[i])
+                    algorithm.run()
 
                 # Reload the algorithm data
                 with open(path, 'rb') as f:
@@ -160,7 +160,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
         std_dist = np.std(dist, 1)
         avg_sim_calls = np.mean(np.cumsum(sim_calls, 0), 1)
 
-        line, = ax1.plot(avg_dist, label=method_labels[i])
+        line, = ax1.plot(avg_dist, label=algorithm_labels[i])
         ax1.fill_between(
             range(num_samples),
             avg_dist - 2 * std_dist,
@@ -169,7 +169,7 @@ def plot_distances(problem, num_samples, methods, method_args, method_labels,
             alpha=0.5)
 
         # TODO: Compute errors on the sim_call average
-        line, = ax2.plot(avg_sim_calls, avg_dist, label=method_labels[i])
+        line, = ax2.plot(avg_sim_calls, avg_dist, label=algorithm_labels[i])
         ax2.fill_between(
             avg_sim_calls,
             avg_dist - 2 * std_dist,
