@@ -16,9 +16,12 @@ from scipy.integrate import quad
 
 
 class proportional(object):
+
     '''
     Distribution class that computes the pdf and cdf values using a function
     that is proportional to the true probability density.
+
+    Works only for 1D densities.
     '''
 
     def __init__(self, proportional_function):
@@ -50,6 +53,11 @@ class proportional(object):
 
 
 class gamma(object):
+
+    '''
+    The Gamma distribution.
+    '''
+
     @staticmethod
     def pdf(x, alpha, beta):
         return np.exp(gamma.logpdf(x, alpha, beta))
@@ -72,6 +80,11 @@ class gamma(object):
 
 
 class exponential(object):
+
+    '''
+    The exponential distribution.
+    '''
+
     @staticmethod
     def pdf(x, beta):
         return np.exp(exponential.logpdf(x, beta))
@@ -89,6 +102,12 @@ class exponential(object):
 
 
 class lognormal(object):
+
+    '''
+    The log-normal distribution. When X is normally distributed,
+    then Y = exp(X) is log-normally distributed.
+    '''
+
     @staticmethod
     def pdf(x, mu, sigma):
         return np.exp(lognormal.logpdf(x, mu, sigma))
@@ -131,6 +150,11 @@ class lognormal(object):
 
 
 class logitnormal(object):
+
+    '''
+    The logit-normal distribution.
+    '''
+
     @staticmethod
     def pdf(x, mu, sigma):
         return np.exp(logitnormal.logpdf(x, mu, sigma))
@@ -143,10 +167,16 @@ class logitnormal(object):
 
     @staticmethod
     def rvs(mu, sigma):
+        # TODO: Implement
         pass
 
 
 class uniform(object):
+
+    '''
+    The 1D uniform distribution.
+    '''
+
     @staticmethod
     def pdf(x, a=0, b=1):
         #if a <= x <= b:
@@ -165,6 +195,11 @@ class uniform(object):
 
 
 class uniform_nd(object):
+
+    '''
+    The n-dimensional uniform distribution.
+    '''
+
     @staticmethod
     def pdf(x, p1, p2):
         float(np.all(x > p1) and np.all(x < p2)) / np.prod(p1 - p2)
@@ -176,11 +211,16 @@ class uniform_nd(object):
         return -np.inf
 
     @staticmethod
-    def rvs(p1, p2):
-        return np.random.uniform(p1, p2)
+    def rvs(p1, p2, N):
+        return np.random.uniform(p1, p2, N)
 
 
 class normal(object):
+
+    '''
+    The 1D normal (or Gaussian) distribution.
+    '''
+
     @staticmethod
     def pdf(x, mu, sigma):
         return np.exp(normal.logpdf(x, mu, sigma))
@@ -196,6 +236,11 @@ class normal(object):
 
 
 class multivariate_normal(object):
+
+    '''
+    The multivariate normal (or Gaussian) distribution.
+    '''
+
     @staticmethod
     def pdf(x, mu, sigma):
         return np.exp(multivariate_normal.logpdf(x, mu, sigma))
@@ -214,6 +259,6 @@ class multivariate_normal(object):
 
     @staticmethod
     def rvs(mu, sigma, N=1):
-        return np.random.multivariate_normal(mu, sigma, N)
+        return np.random.multivariate_normal(mu, sigma, N).ravel()
 
 # TODO: Implement more multidimensional distributions
