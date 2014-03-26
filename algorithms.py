@@ -12,6 +12,7 @@ from abc import ABCMeta, abstractmethod
 import distributions as distr
 import data_manipulation as dm
 from utils import logsumexp, conditional_error
+from problems import ABC_Problem
 
 
 class Base_ABC_Algorithm(object):
@@ -34,6 +35,8 @@ class Base_ABC_Algorithm(object):
 
         self.prior = problem.prior
         self.prior_args = problem.prior_args
+
+        self.statistics = problem.statistics
 
         self.samples = []
         self.sim_calls = []
@@ -120,12 +123,12 @@ class Reject_ABC(Base_ABC_Algorithm):
                 x = self.prior.rvs(*self.prior_args)
 
                 # Perform simulation
-                y = self.simulator(x)
+                y = self.statistics(self.simulator(x))
                 self.current_sim_calls += 1
 
                 # Calculate error
-                # TODO: use statistics and arbitrary compare method
-                error = abs(self.y_star - y)
+                # TODO: Implement more comparison methods
+                error = linalg.norm(self.y_star - y)
 
             # Accept the sample
             self.samples.append(x)
@@ -283,8 +286,8 @@ class Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
         # Get S samples and approximate marginal likelihood
         for s in xrange(self.S):
-            new_x = self.simulator(self.theta)
-            new_x_p = self.simulator(self.theta_p)
+            new_x = self.statistics(self.simulator(self.theta))
+            new_x_p = self.statistics(self.simulator(self.theta_p))
             self.current_sim_calls += 2
 
             # Compute the P(y | x, theta) for these samples
@@ -351,7 +354,7 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
         prev_diff = []
 
         for s in xrange(self.S):
-            new_x = self.simulator(self.theta)
+            new_x = self.statistics(self.simulator(self.theta))
 
             # Compute the P(y | x, theta) for these samples
             u = linalg.norm(new_x - self.y_star) / self.epsilon
@@ -365,7 +368,7 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
         # Get S samples and approximate marginal likelihood
         for s in xrange(self.S):
-            new_x_p = self.simulator(self.theta_p)
+            new_x_p = self.statistics(self.simulator(self.theta_p))
 
             # Compute the P(y | x, theta) for these samples
             u_p = linalg.norm(new_x_p - self.y_star) / self.epsilon
@@ -434,27 +437,32 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
 
     def mh_step(self):
         # Get S samples from simulator
-        x = [self.simulator(self.theta) for s in xrange(self.S)]
-        x_p = [self.simulator(self.theta_p) for s in xrange(self.S)]
+        x = np.array([self.statistics(self.simulator(self.theta))
+                      for s in xrange(self.S)])
+        x_p = np.array([self.statistics(self.simulator(self.theta_p))
+                        for s in xrange(self.S)])
         self.current_sim_calls = 2 * self.S
 
         # Set mu's according to eq. 5
-        mu_theta = np.mean(x)
-        mu_theta_p = np.mean(x_p)
+        mu_theta = np.mean(x, 0)
+        mu_theta_p = np.mean(x_p, 0)
 
         # Set sigma's according to eq. 6
-        sigma_theta = np.std(x)
-        sigma_theta_p = np.std(x_p)
+        x_m = x - mu_theta
+        x_m_p = x_p - mu_theta_p
+        sigma_theta = np.dot(x_m.T, x_m) / float(self.S - 1)
+        sigma_theta_p = np.dot(x_m_p.T, x_m_p) / float(self.S - 1)
 
         # Calculate acceptance according to eq. 10
         numer = self.prior_logprob_p + self.proposal_logprob
         denom = self.prior_logprob + self.proposal_logprob_p
 
-        other_term = distr.normal.logpdf(
-            self.y_star,
-            mu_theta_p,
-            sigma_theta_p + self.eps_eye) - \
-            distr.normal.logpdf(
+        other_term = \
+            distr.multivariate_normal.logpdf(
+                self.y_star,
+                mu_theta_p,
+                sigma_theta_p + self.eps_eye) - \
+            distr.multivariate_normal.logpdf(
                 self.y_star,
                 mu_theta,
                 sigma_theta + self.eps_eye)
@@ -540,21 +548,28 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
 
         while True:
             # Get additional samples from simulator
-            x.extend([self.simulator(self.theta) for s in xrange(additional)])
-            x_p.extend([self.simulator(self.theta_p)
+            x.extend([self.statistics(self.simulator(self.theta))
+                      for s in xrange(additional)])
+            x_p.extend([self.statistics(self.simulator(self.theta_p))
                        for s in xrange(additional)])
 
             additional = self.delta_S
             S = len(x)
 
+            # Convert to arrays
+            ax = np.array(x)
+            ax_p = np.array(x_p)
+
             # Set mu's according to eq. 5
-            mu_hat_theta = np.mean(x)
-            mu_hat_theta_p = np.mean(x_p)
+            mu_hat_theta = np.mean(ax, 0)
+            mu_hat_theta_p = np.mean(ax_p, 0)
 
             # Set sigma's according to eq. 6
             # TODO: incremental implementation?
-            sigma_theta = np.std(x)
-            sigma_theta_p = np.std(x_p)
+            x_m = ax - mu_hat_theta
+            x_m_p = ax_p - mu_hat_theta_p
+            sigma_theta = np.dot(x_m.T, x_m) / float(S - 1)
+            sigma_theta_p = np.dot(x_m_p.T, x_m_p) / float(S - 1)
 
             sigma_theta_S = sigma_theta / float(S)
             sigma_theta_p_S = sigma_theta_p / float(S)
@@ -562,18 +577,20 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
             alphas = []
             for m in range(self.M):
                 # Sample mu_theta_p and mu_theta using eq. 11
-                mu_theta = distr.normal.rvs(mu_hat_theta, sigma_theta_S)
-                mu_theta_p = distr.normal.rvs(mu_hat_theta_p, sigma_theta_p_S)
+                mu_theta = distr.multivariate_normal.rvs(mu_hat_theta,
+                                                         sigma_theta_S)
+                mu_theta_p = distr.multivariate_normal.rvs(mu_hat_theta_p,
+                                                           sigma_theta_p_S)
 
                 # Compute alpha using eq. 12
                 numer = self.prior_logprob_p + self.proposal_logprob + \
-                    distr.normal.logpdf(
+                    distr.multivariate_normal.logpdf(
                         self.y_star,
                         mu_theta_p,
                         sigma_theta_p + self.eye_eps)
 
                 denom = self.prior_logprob + self.proposal_logprob_p + \
-                    distr.normal.logpdf(
+                    distr.multivariate_normal.logpdf(
                         self.y_star,
                         mu_theta,
                         sigma_theta + self.eye_eps)
