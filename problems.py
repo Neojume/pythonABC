@@ -1,10 +1,22 @@
+'''
+Contains a couple of problems to test the ABC framework.
+
+@author Steven
+'''
+
 import distributions as distr
 import numpy as np
+from abc import ABCMeta, abstractmethod
 
-__all__ = ['Exponential_Problem', 'Wilkinson_Problem', 'Sinus_Problem']
+__all__ = ['ABC_Problem', 'Exponential_Problem',
+           'Wilkinson_Problem', 'Sinus_Problem',
+           'Radar_Problem', 'Sinus2D_Problem']
 
 
 class ABC_Problem(object):
+
+    __metaclass__ = ABCMeta
+
     # The dimensionality and value of y_star
     y_star = None
     y_dim = None
@@ -34,11 +46,13 @@ class ABC_Problem(object):
     true_posterior = None
     true_posterior_args = None
 
-    def simulator(self, theta):
-        raise NotImplemented
+    @abstractmethod
+    def statistics(self, vals):
+        return NotImplemented
 
-    def real_posterior(self, x):
-        raise NotImplemented
+    @abstractmethod
+    def simulator(self, theta):
+        return NotImplemented
 
 
 class Exponential_Problem(ABC_Problem):
@@ -70,8 +84,11 @@ class Exponential_Problem(ABC_Problem):
             self.prior_args[0] + self.N,
             self.prior_args[1] + self.N * self.y_star]
 
+    def statistics(self, vals):
+        return np.mean(vals)
+
     def simulator(self, theta):
-        return np.mean(distr.exponential.rvs(theta, self.N))
+        return distr.exponential.rvs(theta, self.N)
 
     def true_function(self, theta):
         return 1.0 / theta
@@ -103,6 +120,9 @@ class Wilkinson_Problem(ABC_Problem):
         self.use_log = False
 
         self.theta_init = 0.5
+
+    def statistics(self, val):
+        return val
 
     def true_function(self, theta):
         return 2 * (theta + 2) * theta * (theta - 2)
@@ -139,8 +159,60 @@ class Sinus_Problem(ABC_Problem):
 
         self.theta_init = 0.5
 
+    def statistics(self, val):
+        return val
+
     def true_function(self, theta):
         return np.sin(theta / 1.2) + 0.1 * theta
 
     def simulator(self, theta):
         return np.sin(theta / 1.2) + 0.1 * theta + distr.normal.rvs(0, 0.2)[0]
+
+
+class Radar_Problem(ABC_Problem):
+
+    '''
+    A toy problem with a 2 dimensional y.
+    '''
+
+    def __init__(self):
+        self.y_star = np.array([0.5, 0.5])
+        self.y_dim = 2
+
+        self.prior = distr.uniform
+        self.prior_args = [0, 2 * np.pi]
+
+        self.proposal = distr.normal
+        self.proposal_args = [0.4]
+        self.use_log = False
+
+        self.theta_init = self.prior.rvs(*self.proposal_args)
+
+    def statistics(self, vals):
+        return vals.mean(1)
+
+    def simulator(self, theta, N=40):
+        u = distr.uniform.rvs(0, 1, N)
+        return np.array([u * np.cos(theta), u * np.sin(theta)])
+
+
+class Sinus2D_Problem(ABC_Problem):
+
+    '''
+    A toy 2D problem, to test multiple dimensions.
+    '''
+
+    def __init__(self):
+        self.y_star = 1.4
+
+        self.prior = distr.uniform_nd
+        self.prior_args = [np.array([-5, -5]), np.array([5, 5])]
+
+    def statistics(self, val):
+        return val
+
+    def true_function(self, vec):
+        return np.sin(0.6 * vec[0]) + np.cos(0.6 * vec[1])
+
+    def simulator(self, theta):
+        return self.true_function(theta) + distr.normal.rvs(0, 0.1)
