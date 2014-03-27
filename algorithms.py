@@ -9,11 +9,13 @@ import sys
 import numpy as np
 from numpy import linalg
 import kernels
+import kernel_regression as kr
 from abc import ABCMeta, abstractmethod
 import distributions as distr
 import data_manipulation as dm
 from utils import logsumexp, conditional_error
 from problems import ABC_Problem
+import matplotlib.pyplot as plt
 
 __all__ = ['Base_ABC_Algorithm', 'Base_MCMC_ABC_Algorithm',
            'Reject_ABC', 'Marginal_ABC', 'Pseudo_Marginal_ABC',
@@ -67,7 +69,7 @@ class Base_ABC_Algorithm(object):
         '''
         return [self.__dict__[par] for par in self.needed_params]
 
-    def save(self):
+    def save_results(self):
         '''
         Saves the results of this algorithm.
 
@@ -142,6 +144,9 @@ class Reject_ABC(Base_ABC_Algorithm):
         # Print a newline
         if self.verbose:
             print ''
+
+        if self.save:
+            self.save_results()
 
 
 class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
@@ -239,7 +244,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
 
         # Store the results if necessary
         if self.save:
-            self.save()
+            self.save_results()
 
 
 class Marginal_ABC(Base_MCMC_ABC_Algorithm):
@@ -566,20 +571,22 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
             ax_p = np.array(x_p)
 
             # Set mu's according to eq. 5
-            mu_hat_theta = np.mean(ax, 0)
-            mu_hat_theta_p = np.mean(ax_p, 0)
+            mu_hat_theta = np.array(np.mean(ax, 0), ndmin=1)
+            mu_hat_theta_p = np.array(np.mean(ax_p, 0), ndmin=1)
 
             # Set sigma's according to eq. 6
             # TODO: incremental implementation?
             x_m = ax - mu_hat_theta
             x_m_p = ax_p - mu_hat_theta_p
-            sigma_theta = np.dot(x_m.T, x_m) / float(S - 1)
-            sigma_theta_p = np.dot(x_m_p.T, x_m_p) / float(S - 1)
+            sigma_theta = np.array(np.dot(x_m.T, x_m) / float(S - 1),
+                                   ndmin=2)
+            sigma_theta_p = np.array(np.dot(x_m_p.T, x_m_p) / float(S - 1),
+                                     ndmin=2)
 
             sigma_theta_S = sigma_theta / float(S)
             sigma_theta_p_S = sigma_theta_p / float(S)
 
-            alphas = []
+            alphas = np.zeros(self.M)
             for m in range(self.M):
                 # Sample mu_theta_p and mu_theta using eq. 11
                 mu_theta = distr.multivariate_normal.rvs(mu_hat_theta,
@@ -601,9 +608,8 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
                         sigma_theta + self.eye_eps)
 
                 log_alpha = min(0.0, numer - denom)
-                alphas.append(np.exp(log_alpha))
+                alphas[m] = np.exp(log_alpha)
 
-            alphas = np.array(alphas)
             tau = np.median(alphas)
 
             # Set unconditional error, using Monte Carlo estimate
@@ -615,4 +621,183 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
 
         self.current_sim_calls = 2 * S
 
-        return distr.uniform.rvs(0.0, 1.0) <= tau
+        return distr.uniform.rvs() <= tau
+
+
+class KRS_ABC(Base_MCMC_ABC_Algorithm):
+
+    def __init__(self, problem, num_samples, **params):
+        '''
+        Creates an instance of the Kernel Regression Surrogate ABC algorithm,
+        which is the same as GPS-ABC described by Meeds and Welling [1]_, only
+        with a kernel regression instead of a Gaussian process.
+
+        Parameters
+        ----------
+        problem : An instance of (a subclass of) `ABC_Problem`.
+            The problem to solve.
+        num_samples : int
+            The number of samples
+        epsilon : float
+            Epsilon for the error tube
+        ksi : float
+            Error margin
+        S0 : int
+            Number of initial simulations per iteration
+        delta_S : int
+            Number of additional simulations
+
+        Note that while epsilon, ksi, S0 and delta_S are keyword-arguments,
+        they are necessary.
+
+        Optional Arguments
+        ------------------
+        verbose : bool
+            The verbosity of the algorithm. If `True`, will print iteration
+            numbers and number of simulations. Default `False`.
+        save : bool
+            If `True`, results will be stored in a possibly existing database
+            Default `True`.
+        M : int
+            Number of samples to approximate mu_hat. Default 50.
+        E : int
+            Number of points to approximate conditional error. Default 50.
+
+        References
+        ----------
+        .. [1] GPS-ABC: Gaussian Process Surrogate Approximate Bayesian
+           Computation. E. Meeds and M. Welling.
+           http://arxiv.org/abs/1401.2838
+        '''
+        super(KRS_ABC, self).__init__(problem, num_samples, **params)
+
+        self.needed_params = ['epsilon', 'ksi', 'S0', 'delta_S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
+
+        self.S0 = params['S0']
+        self.epsilon = params['epsilon']
+        self.ksi = params['ksi']
+        self.delta_S = params['delta_S']
+
+        if 'M' in params.keys():
+            self.M = params['M']
+        else:
+            self.M = 50
+
+        if 'E' in params.keys():
+            self.E = params['E']
+        else:
+            self.E = 50
+
+        self.eps_eye = np.identity(self.y_dim) * self.epsilon ** 2
+
+        # TODO: Set this more intelligently
+        self.h = 0.2
+
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = [self.prior.rvs(*self.prior_args) for s in xrange(self.S0)]
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+
+        self.current_sim_calls = self.S0
+        self.y_star = np.array(self.y_star, ndmin=1)
+
+    def mh_step(self):
+
+        numer = self.prior_logprob_p + self.proposal_logprob
+        denom = self.prior_logprob + self.proposal_logprob_p
+
+        mu_bar = np.zeros(self.y_dim)
+        mu_bar_p = np.zeros(self.y_dim)
+        std = np.zeros(self.y_dim)
+        std_p = np.zeros(self.y_dim)
+        mu_S = np.zeros(self.y_dim)
+        mu_S_p = np.zeros(self.y_dim)
+
+        while True:
+            # Turn the lists into arrays
+            xs_a = np.array(self.xs, ndmin=2)
+            ts_a = np.array(self.ts, ndmin=2)
+
+            # Get statistics from surrogate
+            for j in xrange(self.y_dim):
+
+                #rng = np.linspace(0, 2 * np.pi, 100)
+
+                #rng = np.linspace(self.problem.rng[0], self.problem.rng[1])
+                #plot_krs(xs_a, ts_a[:, [j]], self.h, rng, self.y_star[j])
+                #plt.show()
+
+                tup = kr.kernel_regression(
+                    self.theta, xs_a, ts_a[:, [j]], self.h)
+                tup_p = kr.kernel_regression(
+                    self.theta_p, xs_a, ts_a[:, [j]], self.h)
+
+                mu_bar[j] = tup[0]
+                mu_bar_p[j] = tup[0]
+
+                std[j] = tup_p[1]
+                std_p[j] = tup_p[1]
+
+                mu_S[j] = tup[1] / np.sqrt(tup[3])
+                mu_S_p[j] = tup_p[1] / np.sqrt(tup_p[3])
+
+            alphas = np.zeros(self.M)
+            for m in xrange(self.M):
+                other_term = numer - denom
+
+                for j in xrange(self.y_dim):
+                    mu = distr.normal.rvs(mu_bar[j], mu_S[j])
+                    mu_p = distr.normal.rvs(mu_bar_p[j], mu_S_p[j])
+
+                    other_term += distr.normal.logpdf(
+                        self.y_star[j], mu_p, std_p[j])
+                    other_term -= distr.normal.logpdf(
+                        self.y_star[j], mu, std[j])
+
+                log_alpha = min(0.0, other_term)
+                alphas[m] = np.exp(log_alpha)
+
+            tau = np.median(alphas)
+
+            # Set unconditional error, using Monte Carlo estimate
+            error = np.mean([e * conditional_error(alphas, e, tau, self.M)
+                            for e in np.linspace(0, 1, self.E)])
+
+            if error < self.ksi:
+                break
+            else:
+                for s in xrange(self.delta_S):
+                    # Acquire training points
+                    new_x = self.prior.rvs(*self.prior_args)
+                    self.ts.append(self.statistics(self.simulator(new_x)))
+                    self.xs.append(new_x)
+                self.current_sim_calls += self.delta_S
+
+        return distr.uniform.rvs() <= tau
+
+
+def plot_krs(xs, ts, h, rng, y_star):
+    means = np.zeros(len(rng))
+    stds = np.zeros(len(rng))
+    Ns = np.zeros(len(rng))
+    confs = np.zeros(len(rng))
+    for i, val in enumerate(rng):
+        means[i], stds[i], confs[i], Ns[i], _ = \
+            kr.kernel_regression(val, xs, ts, h)
+
+    plt.fill_between(
+        rng,
+        means - stds / np.sqrt(Ns),
+        means + stds / np.sqrt(Ns),
+        color=[0.7, 0.3, 0.3, 0.5])
+    plt.fill_between(
+        rng,
+        means - 2 * stds,
+        means + 2 * stds,
+        color=[0.7, 0.7, 0.7, 0.7])
+    plt.plot(rng, means)
+    plt.scatter(xs, ts)
+    plt.axhline(y_star)
+    plt.ylim(-4, 4)
+    plt.title('S = {0}, h = {1}'.format(len(xs), h))
