@@ -118,7 +118,7 @@ def plot_distances(problem, num_samples, algorithms, algorithm_labels,
         except IOError:
             # The file doesn't exist: run the experiments
             for r in range(repeats):
-                algorithm.run()
+                algorithm.run(num_samples)
 
             # And load the data after
             with open(path, 'rb') as f:
@@ -134,7 +134,7 @@ def plot_distances(problem, num_samples, algorithms, algorithm_labels,
                     raise Exception('Not enough data points')
                 # Run the required additional experiments
                 for r in range(repeats - array_index):
-                    algorithm.run()
+                    algorithm.run(num_samples)
 
                 # Reload the algorithm data
                 with open(path, 'rb') as f:
