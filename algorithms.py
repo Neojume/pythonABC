@@ -8,18 +8,18 @@ Computation.
 import sys
 import numpy as np
 from numpy import linalg
+from abc import ABCMeta, abstractmethod
+
 import kernels
 import kernel_regression as kr
-from abc import ABCMeta, abstractmethod
 import distributions as distr
 import data_manipulation as dm
 from utils import logsumexp, conditional_error
 from problems import ABC_Problem
-import matplotlib.pyplot as plt
 
 __all__ = ['Base_ABC_Algorithm', 'Base_MCMC_ABC_Algorithm',
            'Reject_ABC', 'Marginal_ABC', 'Pseudo_Marginal_ABC',
-           'SL_ABC', 'ASL_ABC']
+           'SL_ABC', 'ASL_ABC', 'KRS_ABC']
 
 
 class Base_ABC_Algorithm(object):
@@ -187,12 +187,14 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
         sample_accepted : bool
             Whether the sample was accepted
         '''
+
         return NotImplemented
 
     def run(self):
         '''
         Runs the algorithm.
         '''
+
         for i in xrange(self.num_samples):
             # Print information if needed
             self.verbosity(i)
@@ -662,6 +664,8 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
             Number of samples to approximate mu_hat. Default 50.
         E : int
             Number of points to approximate conditional error. Default 50.
+        kernel : kernel function
+            The kernel to use for the kernel regression.
 
         References
         ----------
@@ -690,16 +694,22 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         else:
             self.E = 50
 
+        if 'kernel' in params.keys():
+            self.kernel = params['kernel']
+        else:
+            self.kernel = kernels.gaussian
+
         # Initialize the surrogate with S0 samples from the prior
         self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
-        print self.xs
         self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
         self.current_sim_calls = self.S0
 
         self.y_star = np.array(self.y_star, ndmin=1)
 
         # TODO: Set this more intelligently
-        self.h = 0.2
+        self.h = 0.1
+
+        self.eps_sqr = self.epsilon ** 2
 
     def mh_step(self):
         numer = self.prior_logprob_p + self.proposal_logprob
@@ -717,18 +727,24 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
 
             for j in xrange(self.y_dim):
                 # Get mus and sigmas from Kernel regression
-                mu_bar, std[j], conf, N, _ = kr.kernel_regression(
-                    np.array(self.theta), xs_a, ts_a[:, [j]], self.h)
-                mu_bar_p, std_p[j], conf_p, N_p, _ = kr.kernel_regression(
-                    np.array(self.theta_p), xs_a, ts_a[:, [j]], self.h)
+                mu_bar, std[j], _, N, _ = kr.kernel_regression(
+                    np.array(self.theta),
+                    xs_a,
+                    ts_a[:, [j]],
+                    self.h,
+                    self.kernel)
+                mu_bar_p, std_p[j], _, N_p, _ = kr.kernel_regression(
+                    np.array(self.theta_p),
+                    xs_a,
+                    ts_a[:, [j]],
+                    self.h,
+                    self.kernel)
 
                 # Get samples
-                mu[j] = distr.normal.rvs(mu_bar,
-                                         std[j] / np.sqrt(N),
-                                         self.M)
-                mu_p[j] = distr.normal.rvs(mu_bar_p,
-                                           std_p[j] / np.sqrt(N_p),
-                                           self.M)
+                mu[j] = distr.normal.rvs(
+                    mu_bar, std[j] / np.sqrt(N), self.M)
+                mu_p[j] = distr.normal.rvs(
+                    mu_bar_p, std_p[j] / np.sqrt(N_p), self.M)
 
             alphas = np.zeros(self.M)
             for m in xrange(self.M):
@@ -739,11 +755,11 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
                         distr.normal.logpdf(
                             self.y_star[j],
                             mu_p[j][m],
-                            std_p[j] + (self.epsilon ** 2)) - \
+                            std_p[j] + self.eps_sqr) - \
                         distr.normal.logpdf(
                             self.y_star[j],
                             mu[j][m],
-                            std[j] + (self.epsilon ** 2))
+                            std[j] + self.eps_sqr)
 
                 log_alpha = min(0.0, (numer - denom) + other_term)
                 alphas[m] = np.exp(log_alpha)
@@ -757,41 +773,15 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
             if error > self.ksi:
                 # Acquire training points
                 for s in xrange(self.delta_S):
-                    # Acquire training points
+                    # TODO: More intelligent way of picking points
                     new_x = self.prior.rvs(*self.prior_args)
                     self.ts.append(self.statistics(self.simulator(new_x)))
                     self.xs.append(new_x)
                 self.current_sim_calls += self.delta_S
 
-                # TODO: Reestimate bandwidth
+                # TODO: Re-estimate bandwidth
                 #h = np.var(xs) * pow(3.0 / (4 * len(xs)), 0.2) / 8.0
             else:
                 break
 
         return distr.uniform.rvs() <= tau
-
-
-def plot_krs(xs, ts, h, rng, y_star):
-    means = np.zeros(len(rng))
-    stds = np.zeros(len(rng))
-    Ns = np.zeros(len(rng))
-    confs = np.zeros(len(rng))
-    for i, val in enumerate(rng):
-        means[i], stds[i], confs[i], Ns[i], _ = \
-            kr.kernel_regression(val, xs, ts, h)
-
-    plt.fill_between(
-        rng,
-        means - stds / np.sqrt(Ns),
-        means + stds / np.sqrt(Ns),
-        color=[0.7, 0.3, 0.3, 0.5])
-    plt.fill_between(
-        rng,
-        means - 2 * stds,
-        means + 2 * stds,
-        color=[0.7, 0.7, 0.7, 0.7])
-    plt.plot(rng, means)
-    plt.scatter(xs, ts)
-    plt.axhline(y_star)
-    plt.ylim(-4, 4)
-    plt.title('S = {0}, h = {1}'.format(len(xs), h))
