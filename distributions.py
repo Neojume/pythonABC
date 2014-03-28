@@ -3,8 +3,6 @@
 Class containing different probability distributions with methods to calculate
 their pdf, logpdf and a method to sample from the distributions.
 
-Created on Mon Feb 03 17:59:08 2014
-
 @author: Steven
 """
 
@@ -202,17 +200,17 @@ class uniform_nd(object):
 
     @staticmethod
     def pdf(x, p1, p2):
-        float(np.all(x > p1) and np.all(x < p2)) / np.prod(p1 - p2)
+        float(np.all(x > p1) and np.all(x < p2)) / np.prod(p2 - p1)
 
     @staticmethod
     def logpdf(x, p1, p2):
         if np.all(x > p1) and np.all(x < p2):
-            return -np.sum(np.log(p1 - p2))
+            return -np.sum(np.log(p2 - p1))
         return -np.inf
 
     @staticmethod
-    def rvs(p1, p2, N):
-        return np.random.uniform(p1, p2, N)
+    def rvs(p1, p2):
+        return np.random.uniform(p1, p2)
 
 
 class normal(object):
