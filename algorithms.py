@@ -690,72 +690,62 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         else:
             self.E = 50
 
-        self.eps_eye = np.identity(self.y_dim) * self.epsilon ** 2
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
+        print self.xs
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+        self.current_sim_calls = self.S0
+
+        self.y_star = np.array(self.y_star, ndmin=1)
 
         # TODO: Set this more intelligently
         self.h = 0.2
 
-        # Initialize the surrogate with S0 samples from the prior
-        self.xs = [self.prior.rvs(*self.prior_args) for s in xrange(self.S0)]
-        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
-
-        self.current_sim_calls = self.S0
-        self.y_star = np.array(self.y_star, ndmin=1)
-
     def mh_step(self):
-
         numer = self.prior_logprob_p + self.proposal_logprob
         denom = self.prior_logprob + self.proposal_logprob_p
 
-        mu_bar = np.zeros(self.y_dim)
-        mu_bar_p = np.zeros(self.y_dim)
-        std = np.zeros(self.y_dim)
-        std_p = np.zeros(self.y_dim)
-        mu_S = np.zeros(self.y_dim)
-        mu_S_p = np.zeros(self.y_dim)
-
         while True:
-            # Turn the lists into arrays
-            xs_a = np.array(self.xs, ndmin=2)
+            mu = dict()
+            mu_p = dict()
+            std = dict()
+            std_p = dict()
+
+            # Turn the lists into arrays of the right shape
+            xs_a = np.array(self.xs, ndmin=2).T
             ts_a = np.array(self.ts, ndmin=2)
 
-            # Get statistics from surrogate
             for j in xrange(self.y_dim):
+                # Get mus and sigmas from Kernel regression
+                mu_bar, std[j], conf, N, _ = kr.kernel_regression(
+                    np.array(self.theta), xs_a, ts_a[:, [j]], self.h)
+                mu_bar_p, std_p[j], conf_p, N_p, _ = kr.kernel_regression(
+                    np.array(self.theta_p), xs_a, ts_a[:, [j]], self.h)
 
-                #rng = np.linspace(0, 2 * np.pi, 100)
-
-                #rng = np.linspace(self.problem.rng[0], self.problem.rng[1])
-                #plot_krs(xs_a, ts_a[:, [j]], self.h, rng, self.y_star[j])
-                #plt.show()
-
-                tup = kr.kernel_regression(
-                    self.theta, xs_a, ts_a[:, [j]], self.h)
-                tup_p = kr.kernel_regression(
-                    self.theta_p, xs_a, ts_a[:, [j]], self.h)
-
-                mu_bar[j] = tup[0]
-                mu_bar_p[j] = tup[0]
-
-                std[j] = tup_p[1]
-                std_p[j] = tup_p[1]
-
-                mu_S[j] = tup[1] / np.sqrt(tup[3])
-                mu_S_p[j] = tup_p[1] / np.sqrt(tup_p[3])
+                # Get samples
+                mu[j] = distr.normal.rvs(mu_bar,
+                                         std[j] / np.sqrt(N),
+                                         self.M)
+                mu_p[j] = distr.normal.rvs(mu_bar_p,
+                                           std_p[j] / np.sqrt(N_p),
+                                           self.M)
 
             alphas = np.zeros(self.M)
             for m in xrange(self.M):
-                other_term = numer - denom
+                other_term = 0.0
 
                 for j in xrange(self.y_dim):
-                    mu = distr.normal.rvs(mu_bar[j], mu_S[j])
-                    mu_p = distr.normal.rvs(mu_bar_p[j], mu_S_p[j])
+                    other_term += \
+                        distr.normal.logpdf(
+                            self.y_star[j],
+                            mu_p[j][m],
+                            std_p[j] + (self.epsilon ** 2)) - \
+                        distr.normal.logpdf(
+                            self.y_star[j],
+                            mu[j][m],
+                            std[j] + (self.epsilon ** 2))
 
-                    other_term += distr.normal.logpdf(
-                        self.y_star[j], mu_p, std_p[j])
-                    other_term -= distr.normal.logpdf(
-                        self.y_star[j], mu, std[j])
-
-                log_alpha = min(0.0, other_term)
+                log_alpha = min(0.0, (numer - denom) + other_term)
                 alphas[m] = np.exp(log_alpha)
 
             tau = np.median(alphas)
@@ -764,15 +754,19 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
             error = np.mean([e * conditional_error(alphas, e, tau, self.M)
                             for e in np.linspace(0, 1, self.E)])
 
-            if error < self.ksi:
-                break
-            else:
+            if error > self.ksi:
+                # Acquire training points
                 for s in xrange(self.delta_S):
                     # Acquire training points
                     new_x = self.prior.rvs(*self.prior_args)
                     self.ts.append(self.statistics(self.simulator(new_x)))
                     self.xs.append(new_x)
                 self.current_sim_calls += self.delta_S
+
+                # TODO: Reestimate bandwidth
+                #h = np.var(xs) * pow(3.0 / (4 * len(xs)), 0.2) / 8.0
+            else:
+                break
 
         return distr.uniform.rvs() <= tau
 
