@@ -15,7 +15,7 @@ class ABCData(object):
         '''
 
         self.algorithm = type(algorithm).__name__
-        self.alg_args = algorithm.get_args()
+        self.alg_args = algorithm.get_parameters()
         self.problem = type(algorithm.problem).__name__
 
         self.num_data = 0
@@ -70,7 +70,6 @@ def load(algorithm):
     filename = get_filename(algorithm)
 
     path = os.path.join(os.getcwd(), 'data', filename)
-    print path
     if os.path.isfile(path):
         with open(path, 'rb') as f:
             data = pickle.load(f)
