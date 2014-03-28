@@ -251,6 +251,14 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
 
 class Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
+    '''
+    Marginal ABC
+    ------------
+    Approximates the likelihood by a Monte Carlo estimate of the integral.
+    The marginal sampler re-estimates both the denominator as well as the
+    numerator each iteration, which in practice leads to better mixing.
+    '''
+
     def __init__(self, problem, num_samples, **params):
         '''
         Creates an instance of the marginal ABC algorithm described by Meeds
@@ -322,6 +330,14 @@ class Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
 
 class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
+
+    '''
+    Pseudo Marginal ABC
+    -------------------
+    Approximates the likelihood by a Monte Carlo estimate of the integral.
+    The pseudo marginal sampler only re-estimates the numerator each iteration.
+    The denominator is carried over from the previous iteration.
+    '''
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -402,6 +418,13 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
 
 
 class SL_ABC(Base_MCMC_ABC_Algorithm):
+
+    '''
+    Synthetic Likelihood ABC
+    ------------------------
+    Approximates the likelihood with a normal distribution, by estimating
+    the first and second order statistics from samples from the simulator.
+    '''
 
     def __init__(self, problem, num_samples, **params):
         '''
@@ -485,6 +508,18 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
 
 
 class ASL_ABC(Base_MCMC_ABC_Algorithm):
+
+    '''
+    Adaptive Synthetic Likelihood ABC
+    ------------------------
+    Approximates the likelihood with a normal distribution, by estimating
+    the first and second order statistics from samples from the simulator.
+
+    However the error on making a mistake with the acceptance probability
+    (due to approximation with a finite number of samples) is used to
+    determine whether more samples are needed. Hence the number of samples
+    that is drawn each iteration is adaptive to the acceptance error.
+    '''
 
     def __init__(self, problem, num_samples, **params):
         '''
