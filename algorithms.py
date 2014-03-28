@@ -30,10 +30,10 @@ class Base_ABC_Algorithm(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, problem, num_samples, verbose=False, save=True,
+    def __init__(self, problem, verbose=False, save=True,
                  **kwargs):
+
         self.problem = problem
-        self.num_samples = num_samples
 
         self.y_star = problem.y_star
         self.y_dim = problem.y_dim
@@ -45,9 +45,6 @@ class Base_ABC_Algorithm(object):
 
         self.statistics = problem.statistics
 
-        self.samples = []
-        self.sim_calls = []
-
         self.verbose = verbose
         self.save = save
 
@@ -55,12 +52,25 @@ class Base_ABC_Algorithm(object):
 
         self.current_sim_calls = 0
 
+        self.samples = []
+        self.sim_calls = []
+
     def __repr__(self):
         s = type(self.problem).__name__ + '_' + type(self).__name__
         for par in self.needed_params:
             s += '_' + str(self.__dict__[par])
 
         return s
+
+    def reset(self):
+        '''
+        Resets the internal lists. So that an new run from scratch can begin.
+        '''
+
+        self.current_sim_calls = 0
+
+        self.samples = []
+        self.sim_calls = []
 
     def get_parameters(self):
         '''
@@ -84,7 +94,7 @@ class Base_ABC_Algorithm(object):
             sys.stdout.flush()
 
     @abstractmethod
-    def run(self):
+    def run(self, num_samples, reset=True):
         return NotImplemented
 
 
@@ -102,8 +112,6 @@ class Reject_ABC(Base_ABC_Algorithm):
         ----------
             problem : ABC_Problem instance
                 The problem to solve An instance of the ABC_Problem class.
-            num_samples : int
-                The number of samples to sample.
             epsilon : float
                 The error margin or epsilon-tube.
             verbose : bool
@@ -113,24 +121,40 @@ class Reject_ABC(Base_ABC_Algorithm):
                 If True will save the result to a (possibly exisisting)
                 database
         '''
-        super(Reject_ABC, self).__init__(problem, num_samples, **kwargs)
+        super(Reject_ABC, self).__init__(problem, **kwargs)
 
         self.needed_params = ['epsilon']
         self.epsilon = epsilon
 
-    def run(self):
-        for i in xrange(self.num_samples):
+    def run(self, num_samples, reset=True):
+        '''
+        Runs the algorithm.
+
+        Parameters
+        ----------
+        num_samples : int
+            number of samples to get
+        reset : bool
+            Whether the internal lists should be reset.
+            If false it continues where it stopped.
+            Default True.
+        '''
+        # Reset previous values
+        if reset:
+            self.reset()
+
+        for i in xrange(num_samples):
             self.verbosity(i)
 
             self.current_sim_calls = 0
             error = self.epsilon + 1.0
 
             while error > self.epsilon:
-                # Sample x from the (uniform) prior
-                x = self.prior.rvs(*self.prior_args)
+                # Sample theta from the prior
+                theta = self.prior.rvs(*self.prior_args)
 
                 # Perform simulation
-                y = self.statistics(self.simulator(x))
+                y = self.statistics(self.simulator(theta))
                 self.current_sim_calls += 1
 
                 # Calculate error
@@ -138,7 +162,7 @@ class Reject_ABC(Base_ABC_Algorithm):
                 error = linalg.norm(self.y_star - y)
 
             # Accept the sample
-            self.samples.append(x)
+            self.samples.append(theta)
             self.sim_calls.append(self.current_sim_calls)
 
         # Print a newline
@@ -157,10 +181,9 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, problem, num_samples, verbose=False, save=True,
-                 **kwargs):
+    def __init__(self, problem, verbose=False, save=True, **kwargs):
         super(Base_MCMC_ABC_Algorithm, self).__init__(
-            problem, num_samples, verbose, save)
+            problem, verbose, save)
 
         assert isinstance(problem, ABC_Problem), \
             'Problem is not an instance of ABC_Problem'
@@ -169,11 +192,13 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
         self.proposal_args = problem.proposal_args
         self.use_log = problem.use_log
 
-        self.theta = problem.theta_init
-        if self.use_log:
-            self.log_theta = np.log(self.theta)
+        self.theta_init = problem.theta_init
 
         self.accepted = []
+
+        self.theta = self.theta_init
+        if self.use_log:
+            self.log_theta = np.log(self.theta)
 
     @abstractmethod
     def mh_step(self):
@@ -190,12 +215,33 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
 
         return NotImplemented
 
-    def run(self):
+    def reset(self):
+        super(Base_MCMC_ABC_Algorithm, self).reset()
+
+        self.accepted = []
+
+        self.theta = self.theta_init
+        if self.use_log:
+            self.log_theta = np.log(self.theta)
+
+    def run(self, num_samples, reset=True):
         '''
         Runs the algorithm.
-        '''
 
-        for i in xrange(self.num_samples):
+        Parameters
+        ----------
+        num_samples : int
+            number of samples to get
+        reset : bool
+            Whether the internal lists should be reset.
+            If false it continues where it stopped.
+            Default True.
+        '''
+        # Reset previous values
+        if reset:
+            self.reset()
+
+        for i in xrange(num_samples):
             # Print information if needed
             self.verbosity(i)
 
@@ -259,7 +305,7 @@ class Marginal_ABC(Base_MCMC_ABC_Algorithm):
     numerator each iteration, which in practice leads to better mixing.
     '''
 
-    def __init__(self, problem, num_samples, **params):
+    def __init__(self, problem, **params):
         '''
         Creates an instance of the marginal ABC algorithm described by Meeds
         and Welling [1]_.
@@ -268,8 +314,6 @@ class Marginal_ABC(Base_MCMC_ABC_Algorithm):
         ----------
         problem : An instance of (a subclass of) `ABC_Problem`.
             The problem to solve.
-        num_samples : int
-            The number of samples to draw.
         epsilon : float
             Error margin.
         S : int
@@ -291,7 +335,7 @@ class Marginal_ABC(Base_MCMC_ABC_Algorithm):
            http://arxiv.org/abs/1401.2838
         '''
 
-        super(Marginal_ABC, self).__init__(problem, num_samples, **params)
+        super(Marginal_ABC, self).__init__(problem, **params)
 
         self.needed_params = ['epsilon', 'S']
         assert set(self.needed_params).issubset(params.keys()), \
@@ -339,7 +383,7 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
     The denominator is carried over from the previous iteration.
     '''
 
-    def __init__(self, problem, num_samples, **params):
+    def __init__(self, problem, **params):
         '''
         Creates an instance of the pseudo-marginal ABC algorithm described by
         Meeds and Welling [1]_.
@@ -352,8 +396,6 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
             Error margin.
         S : int
             Number of simulations per iteration.
-        num_samples : int
-            The number of samples to draw.
 
         Optional Arguments
         ------------------
@@ -370,8 +412,7 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
            Computation. E. Meeds and M. Welling.
            http://arxiv.org/abs/1401.2838
         '''
-        super(Pseudo_Marginal_ABC, self).__init__(problem, num_samples,
-                                                  **params)
+        super(Pseudo_Marginal_ABC, self).__init__(problem, **params)
         self.needed_params = ['epsilon', 'S']
         assert set(self.needed_params).issubset(params.keys()), \
             'Not enough parameters: Need {0}'.format(str(self.needed_params))
@@ -426,7 +467,7 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
     the first and second order statistics from samples from the simulator.
     '''
 
-    def __init__(self, problem, num_samples, **params):
+    def __init__(self, problem, **params):
         '''
         Creates an instance of the Synthetic Likelihood ABC algorithm described
         by Meeds and Welling [1]_.
@@ -435,8 +476,6 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
         ----------
         problem : An instance of (a subclass of) `ABC_Problem`.
             The problem to solve.
-        num_samples : int
-            The number of samples
         S : int
             Number of simulations per iteration
         epsilon : float
@@ -459,7 +498,7 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
            Computation. E. Meeds and M. Welling.
            http://arxiv.org/abs/1401.2838
         '''
-        super(SL_ABC, self).__init__(problem, num_samples, **params)
+        super(SL_ABC, self).__init__(problem, **params)
 
         self.needed_params = ['epsilon', 'S']
         assert set(self.needed_params).issubset(params.keys()), \
@@ -521,7 +560,7 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
     that is drawn each iteration is adaptive to the acceptance error.
     '''
 
-    def __init__(self, problem, num_samples, **params):
+    def __init__(self, problem, **params):
         '''
         Creates an instance of the Adaptive Synthetic Likelihood ABC algorithm
         described by Meeds and Welling [1]_.
@@ -530,8 +569,6 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
         ----------
         problem : An instance of (a subclass of) `ABC_Problem`.
             The problem to solve.
-        num_samples : int
-            The number of samples
         epsilon : float
             Epsilon for the error tube
         ksi : float
@@ -563,7 +600,7 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
            Computation. E. Meeds and M. Welling.
            http://arxiv.org/abs/1401.2838
         '''
-        super(ASL_ABC, self).__init__(problem, num_samples, **params)
+        super(ASL_ABC, self).__init__(problem, **params)
 
         self.needed_params = ['epsilon', 'ksi', 'S0', 'delta_S']
         assert set(self.needed_params).issubset(params.keys()), \
@@ -663,7 +700,7 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
 
 class KRS_ABC(Base_MCMC_ABC_Algorithm):
 
-    def __init__(self, problem, num_samples, **params):
+    def __init__(self, problem, **params):
         '''
         Creates an instance of the Kernel Regression Surrogate ABC algorithm,
         which is the same as GPS-ABC described by Meeds and Welling [1]_, only
@@ -673,8 +710,6 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         ----------
         problem : An instance of (a subclass of) `ABC_Problem`.
             The problem to solve.
-        num_samples : int
-            The number of samples
         epsilon : float
             Epsilon for the error tube
         ksi : float
@@ -708,7 +743,7 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
            Computation. E. Meeds and M. Welling.
            http://arxiv.org/abs/1401.2838
         '''
-        super(KRS_ABC, self).__init__(problem, num_samples, **params)
+        super(KRS_ABC, self).__init__(problem, **params)
 
         self.needed_params = ['epsilon', 'ksi', 'S0', 'delta_S']
         assert set(self.needed_params).issubset(params.keys()), \
@@ -742,13 +777,25 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         self.y_star = np.array(self.y_star, ndmin=1)
 
         # TODO: Set this more intelligently
-        self.h = 0.1
+        self.h = 0.2
 
         self.eps_sqr = self.epsilon ** 2
+
+    def reset(self):
+        super(KRS_ABC, self).reset()
+
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+        self.current_sim_calls = self.S0
 
     def mh_step(self):
         numer = self.prior_logprob_p + self.proposal_logprob
         denom = self.prior_logprob + self.proposal_logprob_p
+
+        # Shortcut
+        if np.isneginf(numer):
+            return False
 
         while True:
             mu = dict()
@@ -819,4 +866,4 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
             else:
                 break
 
-        return distr.uniform.rvs() <= tau
+        return distr.uniform.rvs() < tau
