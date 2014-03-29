@@ -56,6 +56,7 @@ class Base_ABC_Algorithm(object):
         self.sim_calls = []
 
     def __repr__(self):
+        # This is used to create a data file for the results
         s = type(self.problem).__name__ + '_' + type(self).__name__
         for par in self.needed_params:
             s += '_' + str(self.__dict__[par])
@@ -192,7 +193,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
         self.proposal_args = problem.proposal_args
         self.use_log = problem.use_log
 
-        self.theta_init = problem.theta_init
+        self.theta_init = problem.get_theta_init()
 
         self.accepted = []
 
@@ -220,7 +221,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
 
         self.accepted = []
 
-        self.theta = self.theta_init
+        self.theta = self.problem.get_theta_init()
         if self.use_log:
             self.log_theta = np.log(self.theta)
 
