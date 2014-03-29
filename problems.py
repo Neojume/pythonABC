@@ -129,7 +129,7 @@ class Wilkinson_Problem(ABC_Problem):
 
     def simulator(self, theta):
         mu = 2 * (theta + 2) * theta * (theta - 2)
-        return distr.normal.rvs(mu, 0.1 + theta ** 2)[0]
+        return distr.normal.rvs(mu, 0.1 + theta ** 2)
 
 
 class Sinus_Problem(ABC_Problem):
@@ -166,7 +166,9 @@ class Sinus_Problem(ABC_Problem):
         return np.sin(theta / 1.2) + 0.1 * theta
 
     def simulator(self, theta):
-        return np.sin(theta / 1.2) + 0.1 * theta + distr.normal.rvs(0, 0.2)[0]
+        if theta < self.rng[0] or theta > self.rng[1]:
+            return np.array(0)
+        return np.sin(theta / 1.2) + 0.1 * theta + distr.normal.rvs(0, 0.2)
 
 
 class Radar_Problem(ABC_Problem):
@@ -176,7 +178,7 @@ class Radar_Problem(ABC_Problem):
     '''
 
     def __init__(self):
-        self.y_star = np.array([0.5, 0.5])
+        self.y_star = np.array([0.21279145, 0.41762674])
         self.y_dim = 2
 
         self.prior = distr.uniform
@@ -187,6 +189,8 @@ class Radar_Problem(ABC_Problem):
         self.use_log = False
 
         self.theta_init = self.prior.rvs(*self.proposal_args)
+
+        self.rng = [0, 2 * np.pi]
 
     def statistics(self, vals):
         return vals.mean(1)
@@ -204,9 +208,16 @@ class Sinus2D_Problem(ABC_Problem):
 
     def __init__(self):
         self.y_star = 1.4
+        self.y_dim = 1
 
         self.prior = distr.uniform_nd
         self.prior_args = [np.array([-5, -5]), np.array([5, 5])]
+
+        self.theta_dim = 2
+        self.theta_init = self.prior.rvs(*self.prior_args)
+
+        self.proposal = distr.multivariate_normal
+        self.proposal_args = [np.identity(self.theta_dim)]
 
     def statistics(self, val):
         return val
