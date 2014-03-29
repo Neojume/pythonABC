@@ -455,7 +455,12 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
         log_alpha = min(0.0, (numer - denom) + diff_term)
 
         # Accept proposal with probability alpha
-        return distr.uniform.rvs(0, 1) <= np.exp(log_alpha)
+        accept = distr.uniform.rvs(0, 1) <= np.exp(log_alpha)
+
+        if accept:
+            self.prev_diff_term = cur_diff_term
+
+        return accept
 
 
 class SL_ABC(Base_MCMC_ABC_Algorithm):
@@ -777,7 +782,7 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         self.y_star = np.array(self.y_star, ndmin=1)
 
         # TODO: Set this more intelligently
-        self.h = 0.2
+        self.h = 0.05
 
         self.eps_sqr = self.epsilon ** 2
 
