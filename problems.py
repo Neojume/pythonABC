@@ -36,15 +36,16 @@ class ABC_Problem(object):
     # log(theta)
     use_log = None
 
-    # The initial value of theta
-    theta_init = None
-
     # The true posterior distribution class and its arguments.
     # Optional:
     # Note that this is used for comparison of convergence.
     true_posterior_rng = None
     true_posterior = None
     true_posterior_args = None
+
+    @abstractmethod
+    def get_theta_init(self):
+        return NotImplemented
 
     @abstractmethod
     def statistics(self, vals):
@@ -76,13 +77,14 @@ class Exponential_Problem(ABC_Problem):
         self.proposal_args = [0.1]
         self.use_log = True
 
-        self.theta_init = 0.1
-
         self.true_posterior_rng = [0.05, 0.15]
         self.true_posterior = distr.gamma
         self.true_posterior_args = [
             self.prior_args[0] + self.N,
             self.prior_args[1] + self.N * self.y_star]
+
+    def get_theta_init(self):
+        return 0.1
 
     def statistics(self, vals):
         return np.mean(vals)
@@ -119,7 +121,8 @@ class Wilkinson_Problem(ABC_Problem):
         self.proposal_args = [2]
         self.use_log = False
 
-        self.theta_init = 0.5
+    def get_theta_init(self):
+        return 0.5
 
     def statistics(self, val):
         return val
@@ -157,7 +160,8 @@ class Sinus_Problem(ABC_Problem):
         self.true_posterior = distr.proportional(proportional)
         self.true_posterior_args = []
 
-        self.theta_init = 0.5
+    def get_theta_init(self):
+        return self.prior.rvs(*self.prior_args)
 
     def statistics(self, val):
         return val
@@ -188,9 +192,10 @@ class Radar_Problem(ABC_Problem):
         self.proposal_args = [0.4]
         self.use_log = False
 
-        self.theta_init = self.prior.rvs(*self.proposal_args)
-
         self.rng = [0, 2 * np.pi]
+
+    def get_theta_init(self):
+        return self.prior.rvs(*self.proposal_args)
 
     def statistics(self, vals):
         return vals.mean(1)
@@ -214,10 +219,12 @@ class Sinus2D_Problem(ABC_Problem):
         self.prior_args = [np.array([-5, -5]), np.array([5, 5])]
 
         self.theta_dim = 2
-        self.theta_init = self.prior.rvs(*self.prior_args)
 
         self.proposal = distr.multivariate_normal
         self.proposal_args = [np.identity(self.theta_dim)]
+
+    def get_theta_init(self):
+        return self.prior.rvs(*self.prior_args)
 
     def statistics(self, val):
         return val
