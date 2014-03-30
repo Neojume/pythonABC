@@ -105,7 +105,7 @@ class Reject_ABC(Base_ABC_Algorithm):
     A simple rejection sampler.
     '''
 
-    def __init__(self, problem, num_samples, epsilon, **kwargs):
+    def __init__(self, problem, epsilon, **kwargs):
         '''
         Creates an instance of rejection ABC for the given problem.
 
@@ -161,6 +161,9 @@ class Reject_ABC(Base_ABC_Algorithm):
                 # Calculate error
                 # TODO: Implement more comparison methods
                 error = linalg.norm(self.y_star - y)
+
+                if self.current_sim_calls % 1000 == 0:
+                    print self.current_sim_calls, 'sim_calls done'
 
             # Accept the sample
             self.samples.append(theta)
@@ -783,7 +786,7 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         self.y_star = np.array(self.y_star, ndmin=1)
 
         # TODO: Set this more intelligently
-        self.h = 0.05
+        self.h = 0.1
 
         self.eps_sqr = self.epsilon ** 2
 
@@ -791,7 +794,8 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
         super(KRS_ABC, self).reset()
 
         # Initialize the surrogate with S0 samples from the prior
-        self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
+        self.xs = [np.array(self.prior.rvs(*self.prior_args), ndmin=1)
+                   for s in xrange(self.S0)]
         self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
         self.current_sim_calls = self.S0
 
@@ -810,7 +814,7 @@ class KRS_ABC(Base_MCMC_ABC_Algorithm):
             std_p = dict()
 
             # Turn the lists into arrays of the right shape
-            xs_a = np.array(self.xs, ndmin=2).T
+            xs_a = np.array(self.xs, ndmin=2)
             ts_a = np.array(self.ts, ndmin=2)
 
             for j in xrange(self.y_dim):
