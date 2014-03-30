@@ -209,8 +209,8 @@ class uniform_nd(object):
         return -np.inf
 
     @staticmethod
-    def rvs(p1, p2):
-        return np.random.uniform(p1, p2)
+    def rvs(p1, p2, N=1):
+        return np.random.uniform(p1, p2, (N, len(p1)))
 
 
 class normal(object):
