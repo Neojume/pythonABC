@@ -37,11 +37,17 @@ class ABC_Problem(object):
     use_log = None
 
     # The true posterior distribution class and its arguments.
-    # Optional:
+    # Optional.
     # Note that this is used for comparison of convergence.
     true_posterior_rng = None
     true_posterior = None
     true_posterior_args = None
+
+    # List of labels of simulator args (what each dimension of theta is)
+    simulator_args = None
+
+    # The arguments used to obtain the y_star
+    true_args = None
 
     @abstractmethod
     def get_theta_init(self):
@@ -62,8 +68,9 @@ class Exponential_Problem(ABC_Problem):
     The exponential toy problem of Meeds and Welling.
     '''
 
-    def __init__(self, y_star=9.42, N=500):
+    def __init__(self, y_star=9.42, true_args=0.1, N=500):
         self.y_star = y_star
+        self.true_args = true_args
         self.y_dim = 1
 
         self.N = N
@@ -104,6 +111,7 @@ class Wilkinson_Problem(ABC_Problem):
 
     def __init__(self):
         self.y_star = 2.0
+        self.true_args = 2.1150
         self.y_dim = 1
 
         self.prior = distr.uniform
@@ -194,6 +202,8 @@ class Radar_Problem(ABC_Problem):
 
         self.rng = [0, 2 * np.pi]
 
+        self.simulator_args = ['theta']
+
     def get_theta_init(self):
         return self.prior.rvs(*self.proposal_args)
 
@@ -214,6 +224,7 @@ class Sinus2D_Problem(ABC_Problem):
     def __init__(self):
         self.y_star = 1.4
         self.y_dim = 1
+        self.simulator_args = ['x', 'y']
 
         self.prior = distr.uniform_nd
         self.prior_args = [np.array([-5, -5]), np.array([5, 5])]
@@ -234,3 +245,35 @@ class Sinus2D_Problem(ABC_Problem):
 
     def simulator(self, theta):
         return self.true_function(theta) + distr.normal.rvs(0, 0.1)
+
+class Multimodal_Sinus_Problem(ABC_Problem):
+
+    '''
+    A toy problem with multiple modes on a theta-slice.
+    '''
+
+    def __init__(self):
+        self.y_star = 5.5
+        self.y_dim = 1
+
+        self.prior = distr.uniform
+        self.prior_args = [0, 2 * np.pi]
+
+        self.rng = [0, 2 * np.pi]
+
+        self.proposal = distr.normal
+        self.proposal_args = [1.5]
+        self.use_log = False
+
+    def get_theta_init(self):
+        return self.prior.rvs(*self.prior_args)
+
+    def statistics(self, val):
+        return val
+
+    def simulator(self, theta):
+        noise = distr.normal.rvs(0, 0.5)
+        if distr.uniform.rvs() > 0.5:
+            return 2 * np.sin(theta) + 3 + noise
+        else:
+            return 4 * np.sin(theta) + 3 + noise
