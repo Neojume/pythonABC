@@ -19,7 +19,8 @@ from problems import ABC_Problem
 
 __all__ = ['Base_ABC_Algorithm', 'Base_MCMC_ABC_Algorithm',
            'Reject_ABC', 'Marginal_ABC', 'Pseudo_Marginal_ABC',
-           'SL_ABC', 'ASL_ABC', 'KRS_ABC']
+           'Base_SL_ABC', 'SL_ABC', 'KSL_ABC',
+           'ASL_ABC', 'KRS_ABC']
 
 
 class Base_ABC_Algorithm(object):
@@ -384,7 +385,8 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
     -------------------
     Approximates the likelihood by a Monte Carlo estimate of the integral.
     The pseudo marginal sampler only re-estimates the numerator each iteration.
-    The denominator is carried over from the previous iteration.
+    The denominator is carried over from the previous iteration. This is in
+    practice slower in mixing, but achieves lower bias.
     '''
 
     def __init__(self, problem, **params):
@@ -467,7 +469,54 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
         return accept
 
 
-class SL_ABC(Base_MCMC_ABC_Algorithm):
+class Base_SL_ABC(Base_MCMC_ABC_Algorithm):
+    '''
+    Abstract Base class for Synthetic Likelihood ABC.
+    '''
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self, problem, **params):
+        super(Base_SL_ABC, self).__init__(problem, **params)
+
+        self.needed_params = ['S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
+
+        self.S = params['S']
+
+    def mh_step(self):
+        numer = self.prior_logprob_p + self.proposal_logprob
+        denom = self.prior_logprob + self.proposal_logprob_p
+
+        # Early exit
+        if np.isneginf(numer):
+            return False
+
+        # Get S samples from simulator
+        #TODO: Make marginal/pseudo marginal choosable
+        self.x = np.array([self.statistics(self.simulator(self.theta))
+                      for s in xrange(self.S)])
+        self.x_p = np.array([self.statistics(self.simulator(self.theta_p))
+                        for s in xrange(self.S)])
+        self.current_sim_calls = 2 * self.S
+
+        other_term = self.get_SL_estimate()
+
+        log_alpha = min(0.0, (numer - denom) + other_term)
+
+        return distr.uniform.rvs(0.0, 1.0) <= np.exp(log_alpha)
+
+    @abstractmethod
+    def get_SL_estimate(self):
+        '''
+        Returns an estimate of p(y_star | theta_p) / p(y_star | theta)
+        in log space.
+        '''
+        return NotImplemented
+
+
+class SL_ABC(Base_SL_ABC):
 
     '''
     Synthetic Likelihood ABC
@@ -509,36 +558,24 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
         '''
         super(SL_ABC, self).__init__(problem, **params)
 
-        self.needed_params = ['epsilon', 'S']
-        assert set(self.needed_params).issubset(params.keys()), \
-            'Not enough parameters: Need {0}'.format(str(self.needed_params))
-
-        self.S = params['S']
-        self.epsilon = params['epsilon']
+        self.epsilon = 0.0
+        if 'epsilon' in params.keys():
+            self.epsilon = params['epsilon']
 
         self.eps_eye = np.identity(self.y_dim) * self.epsilon ** 2
 
-    def mh_step(self):
-        # Get S samples from simulator
-        x = np.array([self.statistics(self.simulator(self.theta))
-                      for s in xrange(self.S)])
-        x_p = np.array([self.statistics(self.simulator(self.theta_p))
-                        for s in xrange(self.S)])
-        self.current_sim_calls = 2 * self.S
+    def get_SL_estimate(self):
 
         # Set mu's according to eq. 5
-        mu_theta = np.mean(x, 0)
-        mu_theta_p = np.mean(x_p, 0)
+        mu_theta = np.mean(self.x, 0)
+        mu_theta_p = np.mean(self.x_p, 0)
 
         # Set sigma's according to eq. 6
-        x_m = x - mu_theta
-        x_m_p = x_p - mu_theta_p
+        x_m = self.x - mu_theta
+        x_m_p = self.x_p - mu_theta_p
         sigma_theta = np.dot(x_m.T, x_m) / float(self.S - 1)
         sigma_theta_p = np.dot(x_m_p.T, x_m_p) / float(self.S - 1)
-
-        # Calculate acceptance according to eq. 10
-        numer = self.prior_logprob_p + self.proposal_logprob
-        denom = self.prior_logprob + self.proposal_logprob_p
+        # TODO: maybe zero off-diagonal
 
         other_term = \
             distr.multivariate_normal.logpdf(
@@ -550,9 +587,77 @@ class SL_ABC(Base_MCMC_ABC_Algorithm):
                 mu_theta,
                 sigma_theta + self.eps_eye)
 
-        log_alpha = min(0.0, (numer - denom) + other_term)
+        return other_term
 
-        return distr.uniform.rvs(0.0, 1.0) <= np.exp(log_alpha)
+
+class KSL_ABC(Base_SL_ABC):
+
+    '''
+    Kernel Synthetic Likelihood ABC
+    ------------------------
+    Approximates the likelihood with a kernel density approximation, by
+    estimating the first and second order statistics from samples from the
+    simulator.
+    '''
+
+    def __init__(self, problem, **params):
+        '''
+        Creates an instance of the Kerne; Synthetic Likelihood ABC algorithm.
+
+        Parameters
+        ----------
+        problem : An instance of (a subclass of) `ABC_Problem`.
+            The problem to solve.
+        S : int
+            Number of simulations per iteration
+
+        Optional Arguments
+        ------------------
+        kernel : kernel function
+            The kernel to use in the x-direction.
+            Default Gaussian.
+        bandwidth : float or string
+            The bandwidth estimation method to use. If `h` is a `float`, it
+            will be used as the bandwidth.
+            Supported methods are:
+            - 'SJ': Sheather-Jones plug-in estimate
+        verbose : bool
+            The verbosity of the algorithm. If `True`, will print iteration
+            numbers and number of simulations. Default `False`.
+        save : bool
+            If `True`, results will be stored in a possibly existing database
+            Default `True`.
+
+        Note that while S is a keyword-argument, they are necessary
+        '''
+        super(KSL_ABC, self).__init__(problem, **params)
+
+        self.needed_params = ['S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
+
+        self.S = params['S']
+
+        if 'kernel' in params.keys():
+            self.kernel = params['kernel']
+        else:
+            self.kernel = kernels.gaussian
+
+        if 'bandwidth' in params.keys():
+            self.bandwidth = params['bandwidth']
+        else:
+            self.bandwidth = 'SJ'
+
+    def get_SL_estimate(self):
+        other_term = \
+            kr.kernel_density_estimate(
+                self.y_star, self.x_p,
+                self.kernel, self.bandwidth) - \
+            kr.kernel_density_estimate(
+                self.y_star, self.x,
+                self.kernel, self.bandwidth)
+
+        return other_term
 
 
 class ASL_ABC(Base_MCMC_ABC_Algorithm):
