@@ -17,13 +17,13 @@ import data_manipulation as dm
 from utils import logsumexp, conditional_error
 from problems import ABC_Problem
 
-__all__ = ['Base_ABC_Algorithm', 'Base_MCMC_ABC_Algorithm',
+__all__ = ['Base_ABC', 'Base_MCMC_ABC',
            'Reject_ABC', 'Marginal_ABC', 'Pseudo_Marginal_ABC',
-           'Base_SL_ABC', 'SL_ABC', 'KSL_ABC',
-           'ASL_ABC', 'KRS_ABC']
+           'Base_SL_ABC', 'SL_ABC', 'KSL_ABC', 'ASL_ABC',
+           'KRS_ABC']
 
 
-class Base_ABC_Algorithm(object):
+class Base_ABC(object):
 
     '''
     Abstract base class for ABC algorithms.
@@ -100,7 +100,7 @@ class Base_ABC_Algorithm(object):
         return NotImplemented
 
 
-class Reject_ABC(Base_ABC_Algorithm):
+class Reject_ABC(Base_ABC):
 
     '''
     A simple rejection sampler.
@@ -178,7 +178,7 @@ class Reject_ABC(Base_ABC_Algorithm):
             self.save_results()
 
 
-class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
+class Base_MCMC_ABC(Base_ABC):
 
     '''
     Abstract base class for MCMC ABC algorithms.
@@ -187,7 +187,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
     __metaclass__ = ABCMeta
 
     def __init__(self, problem, verbose=False, save=True, **kwargs):
-        super(Base_MCMC_ABC_Algorithm, self).__init__(
+        super(Base_MCMC_ABC, self).__init__(
             problem, verbose, save)
 
         assert isinstance(problem, ABC_Problem), \
@@ -221,7 +221,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
         return NotImplemented
 
     def reset(self):
-        super(Base_MCMC_ABC_Algorithm, self).reset()
+        super(Base_MCMC_ABC, self).reset()
 
         self.accepted = []
 
@@ -300,7 +300,7 @@ class Base_MCMC_ABC_Algorithm(Base_ABC_Algorithm):
             self.save_results()
 
 
-class Marginal_ABC(Base_MCMC_ABC_Algorithm):
+class Marginal_ABC(Base_MCMC_ABC):
 
     '''
     Marginal ABC
@@ -378,7 +378,7 @@ class Marginal_ABC(Base_MCMC_ABC_Algorithm):
         return distr.uniform.rvs(0, 1) <= np.exp(log_alpha)
 
 
-class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
+class Pseudo_Marginal_ABC(Base_MCMC_ABC):
 
     '''
     Pseudo Marginal ABC
@@ -469,7 +469,7 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC_Algorithm):
         return accept
 
 
-class Base_SL_ABC(Base_MCMC_ABC_Algorithm):
+class Base_SL_ABC(Base_MCMC_ABC):
     '''
     Abstract Base class for Synthetic Likelihood ABC.
     '''
@@ -660,7 +660,7 @@ class KSL_ABC(Base_SL_ABC):
         return other_term
 
 
-class ASL_ABC(Base_MCMC_ABC_Algorithm):
+class ASL_ABC(Base_MCMC_ABC):
 
     '''
     Adaptive Synthetic Likelihood ABC
@@ -812,7 +812,7 @@ class ASL_ABC(Base_MCMC_ABC_Algorithm):
         return distr.uniform.rvs() <= tau
 
 
-class KRS_ABC(Base_MCMC_ABC_Algorithm):
+class KRS_ABC(Base_MCMC_ABC):
 
     def __init__(self, problem, **params):
         '''
