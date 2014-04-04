@@ -10,7 +10,8 @@ from abc import ABCMeta, abstractmethod
 
 __all__ = ['ABC_Problem', 'Exponential_Problem',
            'Wilkinson_Problem', 'Sinus_Problem',
-           'Radar_Problem', 'Sinus2D_Problem']
+           'Radar_Problem', 'Sinus2D_Problem',
+           'Multimodal_Sinus_Problem', 'Heavy_Tailed_Sinus_Problem']
 
 
 class ABC_Problem(object):
@@ -246,6 +247,7 @@ class Sinus2D_Problem(ABC_Problem):
     def simulator(self, theta):
         return self.true_function(theta) + distr.normal.rvs(0, 0.1)
 
+
 class Multimodal_Sinus_Problem(ABC_Problem):
 
     '''
@@ -253,7 +255,7 @@ class Multimodal_Sinus_Problem(ABC_Problem):
     '''
 
     def __init__(self):
-        self.y_star = 5.5
+        self.y_star = 7
         self.y_dim = 1
 
         self.prior = distr.uniform
@@ -276,4 +278,40 @@ class Multimodal_Sinus_Problem(ABC_Problem):
         if distr.uniform.rvs() > 0.5:
             return 2 * np.sin(theta) + 3 + noise
         else:
-            return 4 * np.sin(theta) + 3 + noise
+            return 6 * np.sin(theta) + 3 + noise
+
+
+class Heavy_Tailed_Sinus_Problem(ABC_Problem):
+    def __init__(self):
+        self.y_star = 0.1
+        self.y_dim = 1
+
+        self.prior = distr.uniform
+        self.prior_args = [0, np.pi]
+
+        self.rng = [0, np.pi]
+
+        self.proposal = distr.normal
+        self.proposal_args = [1]
+        self.use_log = False
+
+        self.true_posterior_rng = self.rng
+        proportional = lambda x: distr.normal.pdf(
+            self.y_star, self.true_function(x), 0.2)
+        self.true_posterior = distr.proportional(proportional)
+        self.true_posterior_args = []
+
+    def get_theta_init(self):
+        return self.prior.rvs(*self.prior_args)
+
+    def statistics(self, val):
+        return val
+
+    def true_function(self, theta):
+        return np.sin(theta / 1.2) + 0.1 * theta
+
+    def simulator(self, theta):
+        if theta < self.rng[0] or theta > self.rng[1]:
+            return np.array(0)
+        return np.sin(theta / 1.2) + 0.1 * theta - \
+            distr.gamma.rvs(2, 10 / 5.0 ) + 0.5
