@@ -1,6 +1,7 @@
 from numpy import linalg
 import numpy as np
 import kernels
+from hselect import hsj
 
 
 def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
@@ -80,8 +81,8 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
     t : np.array
         Sample values.
         N x 1, where N is the number of samples
-    h : float
-        Bandwidth of the kernel
+    h : float or string
+        Bandwidth estimation method. If float, that is used as bandwidth
     kernel : kernel class
         kernel to use for the estimate, default Gaussian
 
@@ -112,9 +113,19 @@ def kernel_regression(x_star, X, t, h, kernel=kernels.gaussian):
     return mean, np.exp(log_std), np.exp(log_conf), np.exp(N), cov
 
 
+def set_bandwidth(method, xs):
+    bandwidth_func = {'SJ' : hsj}
+
+    try:
+        h = float(method)
+    except:
+        h = bandwidth_func[method](xs)
+
+    return h
+
 def doubly_kernel_estimate(x_star, y_star, X, t,
-                           kernel_x=kernels.gaussian, h_x=1,
-                           kernel_y=kernels.gaussian, h_y=1):
+                           kernel_x=kernels.gaussian, h_x='SJ',
+                           kernel_y=kernels.gaussian, h_y='SJ'):
     '''
     Returns the logarithm of the density estimate of y_star at location
     x_star.
@@ -135,11 +146,12 @@ def doubly_kernel_estimate(x_star, y_star, X, t,
         N x 1, where N is the number of samples
     kernel_x : kernel class
         kernel to use for the estimate in the x direction, default Gaussian
-    h_x : float
+    h_x : float or string
         Bandwidth of the x-kernel
     kernel_y : kernel class
-        kernel to use for the estimate of the density function, default Gaussian
-    h_y : float
+        kernel to use for the estimate of the density function.
+        Default Gaussian.
+    h_y : float float or string
         Bandwidth of the y-kernel
 
     Returns
@@ -148,22 +160,51 @@ def doubly_kernel_estimate(x_star, y_star, X, t,
         The logarithm of the density estimate.
     '''
 
+    h_x = set_bandwidth(h_x, X.ravel())
+    h_y = set_bandwidth(h_y, t.ravel())
+
     # TODO: Make it work when more x or y are queried
-    x_star = problem.rng[0] + 0.75 * problem.rng[1]
-    u_x = np.linalg.norm(x_star - xs, axis=1) / h_x
-    weights_x = kernel(u_x) / h_x
-
-    #weights_x = np.array(weights_x, ndmin=2).T
-
-    u_y = np.linalg.norm(y_star - ts, axis=1) / h_x
-    weights_y = kernel(u_y) / h_y
+    weights_x = kernel_weights(x_star, X, kernel_x, h_x)
+    weights_y = kernel_weights(y_star, t, kernel_y, h_y)
     weights_y *= weights_x
 
-    return sum(weights_y) / float(sum(weights_x))
+    return np.log(sum(weights_y)) - np.log(sum(weights_x))
 
 
+def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ'):
+    '''
+    Returns the kernel-weights for the data points given the x-star.
 
-def kernel_density_estimate(x_star, X, t, h, kernel=kernels.gaussian):
+    Parameters
+    ----------
+    x_star : np.array
+        Estimate location.
+        Of length M, where M is the dimensionality of x
+        Note: 1D
+    X : np.array
+        Coordinates of samples.
+        N x M, where M is the dimensionality of x, N the number of samples
+    t : np.array
+        Sample values.
+        N x 1, where N is the number of samples
+    kernel : kernel class
+        kernel to use for the estimate, default Gaussian
+    h : float or string
+        Bandwidth of the kernel
+
+    Returns
+    -------
+    weights : array
+        The array of weights for each training point
+    '''
+
+    h = set_bandwidth(h, X.ravel())
+
+    u = linalg.norm(x_star - X, axis=1) / h
+    return kernel(u) / h
+
+
+def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ'):
     '''
     Returns the kernel density estimate at x_star using the given kernel and
     bandwidth on the given data.
@@ -190,10 +231,10 @@ def kernel_density_estimate(x_star, X, t, h, kernel=kernels.gaussian):
     log_estimate : float
         The log of estimated density at the probe location.
     '''
-    u = linalg.norm(x_star - X, axis=1) / h
-    weights = kernel(u) / h
 
-    return  np.log(np.sum(weights))
+    weights = kernel_weights(x_star, X, kernel, h)
+
+    return np.log(np.sum(weights)) - np.log(len(X))
 
 
 def MSE(predictions, targets):
