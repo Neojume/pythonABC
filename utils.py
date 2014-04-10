@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import kernel_regression as kr
+import kernel_methods as km
 
 
 def get_weighted_bootstrap(values, weights, num_samples):
@@ -177,7 +177,7 @@ def plot_krs(xs, ts, h, rng, y_star):
     confs = np.zeros(len(rng))
     for i, val in enumerate(rng):
         means[i], stds[i], confs[i], Ns[i], _ = \
-            kr.kernel_regression(val, xs, ts, h)
+            km.kernel_regression(val, xs, ts, h)
 
     plt.fill_between(
         rng,
