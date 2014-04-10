@@ -11,16 +11,18 @@ from numpy import linalg
 from abc import ABCMeta, abstractmethod
 
 import kernels
-import kernel_regression as kr
+import kernel_methods as km
 import distributions as distr
 import data_manipulation as dm
-from utils import logsumexp, conditional_error
+from utils import logsumexp, conditional_error, \
+    get_bootstrap, get_weighted_bootstrap
 from problems import ABC_Problem
 
 __all__ = ['Base_ABC', 'Base_MCMC_ABC',
            'Reject_ABC', 'Marginal_ABC', 'Pseudo_Marginal_ABC',
-           'Base_SL_ABC', 'SL_ABC', 'KSL_ABC', 'ASL_ABC',
-           'KRS_ABC']
+           'Base_SL_ABC', 'SL_ABC', 'KSL_ABC',
+           'ASL_ABC', 'AKSL_ABC',
+           'KRS_ABC', 'DKS_ABC']
 
 
 class Base_ABC(object):
@@ -89,7 +91,7 @@ class Base_ABC(object):
         '''
         dm.save(self)
 
-    def verbosity(self, i, interval=200):
+    def verbosity(self, i, interval=10):
         if self.verbose and i % interval == 0:
             sys.stdout.write('\r%s iteration %d %d' %
                              (type(self).__name__, i, sum(self.sim_calls)))
@@ -470,6 +472,7 @@ class Pseudo_Marginal_ABC(Base_MCMC_ABC):
 
 
 class Base_SL_ABC(Base_MCMC_ABC):
+
     '''
     Abstract Base class for Synthetic Likelihood ABC.
     '''
@@ -494,11 +497,11 @@ class Base_SL_ABC(Base_MCMC_ABC):
             return False
 
         # Get S samples from simulator
-        #TODO: Make marginal/pseudo marginal choosable
+        # TODO: Make marginal/pseudo marginal choosable
         self.x = np.array([self.statistics(self.simulator(self.theta))
-                      for s in xrange(self.S)])
+                           for s in xrange(self.S)])
         self.x_p = np.array([self.statistics(self.simulator(self.theta_p))
-                        for s in xrange(self.S)])
+                             for s in xrange(self.S)])
         self.current_sim_calls = 2 * self.S
 
         other_term = self.get_SL_estimate()
@@ -590,6 +593,7 @@ class SL_ABC(Base_SL_ABC):
         return other_term
 
 
+# TODO: Make work for multiple ys and thetas
 class KSL_ABC(Base_SL_ABC):
 
     '''
@@ -650,10 +654,10 @@ class KSL_ABC(Base_SL_ABC):
 
     def get_SL_estimate(self):
         other_term = \
-            kr.kernel_density_estimate(
+            km.kernel_density_estimate(
                 self.y_star, self.x_p,
                 self.kernel, self.bandwidth) - \
-            kr.kernel_density_estimate(
+            km.kernel_density_estimate(
                 self.y_star, self.x,
                 self.kernel, self.bandwidth)
 
@@ -812,6 +816,130 @@ class ASL_ABC(Base_MCMC_ABC):
         return distr.uniform.rvs() <= tau
 
 
+class AKSL_ABC(Base_MCMC_ABC):
+
+    '''
+    Adaptive Kernel Synthetic Likelihood ABC
+    ----------------------------------------
+    Approximates the likelihood with a kernel density estimate.
+
+    However the error on making a mistake with the acceptance probability
+    (due to approximation with a finite number of samples) is used to
+    determine whether more samples are needed. Hence the number of samples
+    that is drawn each iteration is adaptive to the acceptance error.
+
+    The error is estimated using bootstrapping.
+    '''
+
+    def __init__(self, problem, **params):
+        '''
+        Creates an instance of the Adaptive Synthetic Likelihood ABC algorithm
+        described by Meeds and Welling [1]_.
+
+        Parameters
+        ----------
+        problem : An instance of (a subclass of) `ABC_Problem`.
+            The problem to solve.
+        ksi : float
+            Error margin
+        S0 : int
+            Number of initial simulations per iteration
+        delta_S : int
+            Number of additional simulations
+
+        Note that while epsilon, ksi, S0 and delta_S are keyword-arguments,
+        they are necessary.
+
+        Optional Arguments
+        ------------------
+        verbose : bool
+            The verbosity of the algorithm. If `True`, will print iteration
+            numbers and number of simulations. Default `False`.
+        save : bool
+            If `True`, results will be stored in a possibly existing database
+            Default `True`.
+        M : int
+            Number of bootstrap repetitions. Default 100.
+        E : int
+            Number of points to approximate conditional error. Default 50.
+
+        References
+        ----------
+        .. [1] GPS-ABC: Gaussian Process Surrogate Approximate Bayesian
+           Computation. E. Meeds and M. Welling.
+           http://arxiv.org/abs/1401.2838
+        '''
+        super(AKSL_ABC, self).__init__(problem, **params)
+
+        self.needed_params = ['ksi', 'S0', 'delta_S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
+
+        self.S0 = params['S0']
+        self.ksi = params['ksi']
+        self.delta_S = params['delta_S']
+
+        if 'M' in params.keys():
+            self.M = params['M']
+        else:
+            self.M = 50
+
+        if 'E' in params.keys():
+            self.E = params['E']
+        else:
+            self.E = 50
+
+    def mh_step(self):
+        # Reset the samples
+        x = []
+        x_p = []
+
+        additional = self.S0
+
+        numer = self.prior_logprob_p + self.proposal_logprob
+        denom = self.prior_logprob + self.proposal_logprob_p
+
+        if np.isneginf(numer):
+            return False
+
+        while True:
+            # Get additional samples from simulator
+            x.extend([self.statistics(self.simulator(self.theta))
+                      for s in xrange(additional)])
+            x_p.extend([self.statistics(self.simulator(self.theta_p))
+                       for s in xrange(additional)])
+
+            additional = self.delta_S
+            S = len(x)
+
+            alphas = np.zeros(self.M)
+            for m in xrange(self.M):
+                # Get a bootstrap sample
+                new_x = get_bootstrap(x)
+                new_x_p = get_bootstrap(x_p)
+
+                # Compute alpha using eq. 12
+                other_term = \
+                    km.kernel_density_estimate(self.y_star, new_x_p) - \
+                    km.kernel_density_estimate(self.y_star, new_x)
+
+                log_alpha = min(0.0, (numer - denom) + other_term)
+                alphas[m] = np.exp(log_alpha)
+
+            tau = np.median(alphas)
+
+            # Set unconditional error, using Monte Carlo estimate
+            error = np.mean([e * conditional_error(alphas, e, tau, self.M)
+                            for e in np.linspace(0, 1, self.E)])
+
+            if error < self.ksi:
+                break
+
+        self.current_sim_calls = 2 * S
+
+        return distr.uniform.rvs() <= tau
+
+
 class KRS_ABC(Base_MCMC_ABC):
 
     def __init__(self, problem, **params):
@@ -924,13 +1052,13 @@ class KRS_ABC(Base_MCMC_ABC):
 
             for j in xrange(self.y_dim):
                 # Get mus and sigmas from Kernel regression
-                mu_bar, std[j], _, N, _ = kr.kernel_regression(
+                mu_bar, std[j], _, N, _ = km.kernel_regression(
                     np.array(self.theta),
                     xs_a,
                     ts_a[:, [j]],
                     self.h,
                     self.kernel)
-                mu_bar_p, std_p[j], _, N_p, _ = kr.kernel_regression(
+                mu_bar_p, std_p[j], _, N_p, _ = km.kernel_regression(
                     np.array(self.theta_p),
                     xs_a,
                     ts_a[:, [j]],
@@ -978,6 +1106,203 @@ class KRS_ABC(Base_MCMC_ABC):
 
                 # TODO: Re-estimate bandwidth
                 #h = np.var(xs) * pow(3.0 / (4 * len(xs)), 0.2) / 8.0
+            else:
+                break
+
+        return distr.uniform.rvs() < tau
+
+
+class DKS_ABC(Base_MCMC_ABC):
+
+    '''
+    Double Kernel Surrogate - ABC
+    -----------------------------
+    Approximates the simulator using a kernel weights on the x and a kernel
+    density estimate on the y.
+    '''
+
+    def __init__(self, problem, **params):
+        '''
+        Creates an instance of the Double Kernel Surrogate ABC algorithm,
+
+        Parameters
+        ----------
+        problem : An instance of (a subclass of) `ABC_Problem`.
+            The problem to solve.
+        S0 : int
+            Number of initial simulations per iteration
+        delta_S : int
+            Number of additional simulations
+        ksi : float
+            Error margin on the acceptance probability.
+
+        Note that while S0 and delta_S are keyword-arguments, they are
+        necessary.
+
+        Optional Arguments
+        ------------------
+        kernel_x : kernel function
+            The kernel to use in the x-direction.
+            Default Gaussian.
+        kernel_y : kernel function
+            The kernel to use in the y-direction.
+            Default Gaussian.
+        verbose : bool
+            The verbosity of the algorithm. If `True`, will print iteration
+            numbers and number of simulations. Default `False`.
+        save : bool
+            If `True`, results will be stored in a possibly existing database
+            Default `True`.
+        M : int
+            Number of bootstrap repetitions. Default 50.
+        E : int
+            Number of points to approximate conditional error. Default 50.
+        B : int
+            Number of bootstrap samples to take. Default 50.
+
+        References
+        ----------
+        .. [1] GPS-ABC: Gaussian Process Surrogate Approximate Bayesian
+           Computation. E. Meeds and M. Welling.
+           http://arxiv.org/abs/1401.2838
+        '''
+        super(DKS_ABC, self).__init__(problem, **params)
+
+        self.needed_params = ['ksi', 'S0', 'delta_S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
+
+        self.S0 = params['S0']
+        self.delta_S = params['delta_S']
+        self.ksi = params['ksi']
+
+        if 'kernel_x' in params.keys():
+            self.kernel_x = params['kernel_x']
+        else:
+            self.kernel_x = kernels.gaussian
+
+        if 'kernel_y' in params.keys():
+            self.kernel_y = params['kernel_y']
+        else:
+            self.kernel_y = kernels.gaussian
+
+        if 'M' in params.keys():
+            self.M = params['M']
+        else:
+            self.M = 10
+
+        if 'E' in params.keys():
+            self.E = params['E']
+        else:
+            self.E = 50
+
+        if 'B' in params.keys():
+            self.B = params['B']
+        else:
+            self.B = 100
+
+        # TODO: incorporate in optional args
+        self.h_x_method = 'SJ'
+        self.h_y_method = 'SJ'
+
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+        self.h_x = km.set_bandwidth(self.h_x_method, np.array(self.xs).ravel())
+        self.current_sim_calls = self.S0
+
+        self.y_star = np.array(self.y_star, ndmin=1)
+
+    def reset(self):
+        super(DKS_ABC, self).reset()
+
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = [np.array(self.prior.rvs(*self.prior_args), ndmin=1)
+                   for s in xrange(self.S0)]
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+        self.current_sim_calls = self.S0
+
+    def mh_step(self):
+        numer = self.prior_logprob_p + self.proposal_logprob
+        denom = self.prior_logprob + self.proposal_logprob_p
+
+        # Shortcut
+        if np.isneginf(numer):
+            return False
+
+        while True:
+            # Turn the lists into arrays of the right shape
+            xs_a = np.array(self.xs, ndmin=2)
+            ts_a = np.array(self.ts, ndmin=2)
+
+            for j in xrange(self.y_dim):
+                # TODO: fix multi dimensional y
+                pass
+
+            # Calculate x-weights
+            weights_x = km.kernel_weights(
+                self.theta,
+                xs_a,
+                self.kernel_x,
+                self.h_x)
+            weights_x_p = km.kernel_weights(
+                self.theta_p,
+                xs_a,
+                self.kernel_x,
+                self.h_x)
+
+            alphas = np.zeros(self.M)
+            for m in xrange(self.M):
+                print len(self.samples), m
+                # Get bootstrap sample using the weights
+                bs_ys = get_weighted_bootstrap(ts_a, weights_x, self.B)
+                bs_ys_p = get_weighted_bootstrap(ts_a, weights_x_p, self.B)
+
+                other_term = 0.0
+
+                for j in xrange(self.y_dim):
+                    other_term += \
+                        km.kernel_density_estimate(
+                            self.y_star[j],
+                            bs_ys_p,
+                            self.kernel_y,
+                            self.h_y_method) - \
+                        km.kernel_density_estimate(
+                            self.y_star[j],
+                            bs_ys,
+                            self.kernel_y,
+                            self.h_y_method)
+
+                log_alpha = min(0.0, (numer - denom) + other_term)
+                alphas[m] = np.exp(log_alpha)
+
+            tau = np.median(alphas)
+
+            # Set unconditional error, using Monte Carlo estimate
+            error = np.mean([e * conditional_error(alphas, e, tau, self.M)
+                            for e in np.linspace(0, 1, self.E)])
+
+            if error > self.ksi:
+                if len(self.xs) % 30 == 0:
+                    print alphas
+                    print len(self.xs)
+                    print error, tau
+                # Acquire training points
+                for s in xrange(self.delta_S):
+                    # TODO: More intelligent way of picking points
+
+                    # new_x = self.prior.rvs(*self.prior_args)
+                    if distr.uniform.rvs() > 0.5:
+                        new_x = self.theta
+                    else:
+                        new_x = self.theta_p
+                    self.ts.append(self.statistics(self.simulator(new_x)))
+                    self.xs.append(new_x)
+                self.current_sim_calls += self.delta_S
+
+                # Recalculate bandwidth
+                self.h_x = km.set_bandwidth(
+                    self.h_x_method, np.array(self.xs).ravel())
             else:
                 break
 
