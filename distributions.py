@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
+'''
 Class containing different probability distributions with methods to calculate
 their pdf, logpdf and a method to sample from the distributions.
 
 @author: Steven
-"""
+'''
 
 import collections
 import numpy as np
@@ -75,6 +75,24 @@ class gamma(object):
     @staticmethod
     def rvs(alpha, beta, N=1):
         return np.random.gamma(alpha, 1.0 / beta, N)
+
+
+class beta(object):
+
+    '''
+    The Beta distribution.
+    '''
+
+    def pdf(x, alpha, beta):
+        return np.exp(beta.logpdf(x, alpha, beta))
+
+    def logdf(x, alpha, beta):
+        return (alpha - 1) * np.log(x) + (beta - 1) * np.log(1 - x) + \
+            special.gammaln(alpha + beta) - special.gammaln(alpha) - \
+            special.gammaln(beta)
+
+    def rvs(alpha, beta, N=1):
+        return np.random.beta(alpha, beta, N)
 
 
 class exponential(object):
@@ -210,6 +228,8 @@ class uniform_nd(object):
 
     @staticmethod
     def rvs(p1, p2, N=1):
+        if N == 1:
+            return np.random.uniform(p1, p2)
         return np.random.uniform(p1, p2, (N, len(p1)))
 
 
@@ -258,5 +278,42 @@ class multivariate_normal(object):
     @staticmethod
     def rvs(mu, sigma, N=1):
         return np.random.multivariate_normal(mu, sigma, N).ravel()
+
+
+class multivariate_mixture(object):
+
+    '''
+    A multivariate distribution that consists of the product of multiple
+    one-dimensional distributions.
+    '''
+
+    def __init__(self, distributions, arguments):
+        '''
+
+        Arguments
+        ---------
+        distributions : list
+            The list of the distributions this is a product of.
+        arguments : list of lists
+            The list of arguments for the different distributions.
+        '''
+        self.distrs = distributions
+        self.args = arguments
+
+    def pdf(self, thetas):
+        return np.exp(self.logpdf(thetas))
+
+    def logpdf(self, thetas):
+        logpdf = 0.0
+        for theta, distribution, arguments in zip(thetas, self.distrs, self.args):
+            logpdf += distribution.logpdf(theta, *arguments)
+        return logpdf
+
+    def rvs(self):
+        D = len(self.distrs)
+        thetas = np.zeros((D, N))
+        for t, theta, distribution, arguments in zip(range(D), thetas, self.distrs, self.args):
+            thetas[t,:] =  distribution.rvs(*arguments, N=N)
+        return thetas
 
 # TODO: Implement more multidimensional distributions
