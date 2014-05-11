@@ -217,7 +217,7 @@ def kernel_weights_non_radial(x_star, X, kernel, h='SJ'):
     weights = np.ones(X.shape[0])
 
     for d in xrange(dim):
-        weights *= kernel_weights(x_star[d], X[:, d], kernel, h)
+        weights *= kernel_weights(x_star[d], X[:, [d]], kernel, h)
 
     return weights
 
