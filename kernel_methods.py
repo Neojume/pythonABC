@@ -185,6 +185,43 @@ def doubly_kernel_estimate(x_star, y_star, X, t,
     return np.log(sum(weights_y)) - np.log(sum(weights_x))
 
 
+def kernel_weights_non_radial(x_star, X, kernel, h='SJ'):
+    '''
+    Returns the non radial kernel-weights for the data points given the x-star.
+    This means that each dimension has its own bandwidth.
+
+    Parameters
+    ----------
+    x_star : np.array
+        Estimate location.
+        Of length M, where M is the dimensionality of x
+        Note: 1D
+    X : np.array
+        Coordinates of samples.
+        N x M, where M is the dimensionality of x, N the number of samples
+    t : np.array
+        Sample values.
+        N x 1, where N is the number of samples
+    kernel : kernel class
+        kernel to use for the estimate, default Gaussian
+    h : float or string
+        Bandwidth of the kernel
+
+    Returns
+    -------
+    weights : array
+        The array of weights for each training point
+    '''
+
+    dim = X.shape[1]
+    weights = np.ones(X.shape[0])
+
+    for d in xrange(dim):
+        weights *= kernel_weights(x_star[d], X[:, d], kernel, h)
+
+    return weights
+
+
 def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ'):
     '''
     Returns the kernel-weights for the data points given the x-star.
