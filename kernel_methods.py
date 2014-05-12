@@ -5,7 +5,7 @@ Implementation of some kernel methods.
 from numpy import linalg
 import numpy as np
 import kernels
-from hselect import hsj
+import hselect
 
 
 def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
@@ -127,11 +127,15 @@ def set_bandwidth(method, xs):
         The method to set the bandwidth with. If `float` that will
         be used as the bandwidth. If string:
         `SJ` = Sheather-Jones plug-in estimate.
+        `Scott` = Scotts rule of thumb.
+        `Silverman` = Silvermans rule of thumb.
     '''
     try:
         h = float(method)
     except:
-        bandwidth_func = {'SJ': hsj}
+        bandwidth_func = {'SJ': hselect.hsj,
+                          'Scott': hselect.hscott,
+                          'Silverman': hselect.hsilverman}
         h = bandwidth_func[method](xs)
 
     return h
