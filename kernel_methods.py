@@ -31,7 +31,7 @@ def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
     # TODO: Fix this
     # Calculate adaptive bandwidths
     #bandwidth = defaultdict(lambda: alpha)
-    #for i, x1 in enumerate(X):
+    # for i, x1 in enumerate(X):
     #    for x2 in X:
     #        u = linalg.norm(x1 - x2) / h
     #        bandwidth[i] += (kernel(u) / h) * (x1 - x2) ** 2
@@ -44,7 +44,7 @@ def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
     bandwidth = np.sum(np.reshape(r, (n, n)), axis=1)
 
     #weights = np.zeros(len(X))
-    #for i, x in enumerate(X):
+    # for i, x in enumerate(X):
     #    u = linalg.norm(x_star - x) / bandwidth[i]
     #    weights[i] = kernel(u) / bandwidth[i]
 
@@ -117,7 +117,7 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ'):
     return mean, np.exp(log_std), np.exp(log_conf), np.exp(N), cov
 
 
-def set_bandwidth(method, xs):
+def set_bandwidth(method, xs, weights=None):
     '''
     Sets the bandwidth using the given method.
 
@@ -129,6 +129,10 @@ def set_bandwidth(method, xs):
         `SJ` = Sheather-Jones plug-in estimate.
         `Scott` = Scotts rule of thumb.
         `Silverman` = Silvermans rule of thumb.
+    xs : array
+        The x coordinates to use.
+    weights : array (optional)
+        The weights corresponding to the coordinates. Default None.
     '''
     try:
         h = float(method)
@@ -136,7 +140,7 @@ def set_bandwidth(method, xs):
         bandwidth_func = {'SJ': hselect.hsj,
                           'Scott': hselect.hscott,
                           'Silverman': hselect.hsilverman}
-        h = bandwidth_func[method](xs)
+        h = bandwidth_func[method](xs, weights)
 
     return h
 
@@ -189,7 +193,7 @@ def doubly_kernel_estimate(x_star, y_star, X, t,
     return np.log(sum(weights_y)) - np.log(sum(weights_x))
 
 
-def kernel_weights_non_radial(x_star, X, kernel, h='SJ'):
+def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None):
     '''
     Returns the non radial kernel-weights for the data points given the x-star.
     This means that each dimension has its own bandwidth.
@@ -218,15 +222,15 @@ def kernel_weights_non_radial(x_star, X, kernel, h='SJ'):
     '''
 
     dim = X.shape[1]
-    weights = np.ones(X.shape[0])
+    kweights = np.ones(X.shape[0])
 
     for d in xrange(dim):
-        weights *= kernel_weights(x_star[d], X[:, [d]], kernel, h)
+        kweights *= kernel_weights(x_star[d], X[:, [d]], kernel, h, weights)
 
-    return weights
+    return kweights
 
 
-def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ'):
+def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ', weights=None):
     '''
     Returns the kernel-weights for the data points given the x-star.
 
@@ -253,13 +257,14 @@ def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ'):
         The array of weights for each training point
     '''
 
-    h = set_bandwidth(h, X.ravel())
+    h = set_bandwidth(h, X.ravel(), weights=weights)
 
     u = linalg.norm(x_star - X, axis=1) / h
     return kernel(u) / h
 
 
-def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ'):
+def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
+                            weights=None):
     '''
     Returns the kernel density estimate at x_star using the given kernel and
     bandwidth on the given data.
@@ -287,6 +292,6 @@ def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ'):
         The log of estimated density at the probe location.
     '''
 
-    weights = kernel_weights(x_star, X, kernel, h)
+    kweights = kernel_weights(x_star, X, kernel, h, weights)
 
-    return np.log(np.sum(weights)) - np.log(len(X))
+    return np.log(np.sum(kweights)) - np.log(len(X))
