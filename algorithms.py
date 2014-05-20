@@ -10,6 +10,8 @@ import numpy as np
 from numpy import linalg
 from abc import ABCMeta, abstractmethod
 
+from lowess import lowessNd
+
 import kernels
 import kernel_methods as km
 import distributions as distr
@@ -18,11 +20,10 @@ from utils import logsumexp, conditional_error, \
     get_bootstrap, get_weighted_bootstrap
 from problems import ABC_Problem
 
-__all__ = ['Base_ABC', 'Base_MCMC_ABC',
-           'Reject_ABC', 'Marginal_ABC', 'Pseudo_Marginal_ABC',
-           'Base_SL_ABC', 'SL_ABC', 'KSL_ABC',
-           'ASL_ABC', 'AKSL_ABC',
-           'KRS_ABC', 'DKS_ABC']
+__all__ = [
+    'Base_ABC', 'Base_MCMC_ABC', 'Reject_ABC', 'Marginal_ABC',
+    'Pseudo_Marginal_ABC', 'Base_SL_ABC', 'SL_ABC', 'KSL_ABC', 'ASL_ABC',
+    'AKSL_ABC', 'KRS_ABC', 'DKS_ABC', 'LCKS_ABC']
 
 
 class Base_ABC(object):
@@ -1287,6 +1288,200 @@ class DKS_ABC(Base_MCMC_ABC):
                     print alphas
                     print len(self.xs)
                     print error, tau
+                # Acquire training points
+                for s in xrange(self.delta_S):
+                    # TODO: More intelligent way of picking points
+
+                    # new_x = self.prior.rvs(*self.prior_args)
+                    if distr.uniform.rvs() > 0.5:
+                        new_x = self.theta
+                    else:
+                        new_x = self.theta_p
+                    self.ts.append(self.statistics(self.simulator(new_x)))
+                    self.xs.append(new_x)
+                self.current_sim_calls += self.delta_S
+
+                # Recalculate bandwidth
+                self.h_x = km.set_bandwidth(
+                    self.h_x_method, np.array(self.xs).ravel())
+            else:
+                break
+
+        return distr.uniform.rvs() < tau
+
+
+class LCKS_ABC(Base_MCMC_ABC):
+
+    '''
+    Linear Corrected Kernel Surrogate - ABC
+    -----------------------------
+    Approximates the simulator using a kernel weights on the x and a kernel
+    density estimate on the y, while using a linear regression to correct
+    projection.
+    '''
+
+    def __init__(self, problem, **params):
+        '''
+        Creates an instance of the Linear Corrected Kernel Surrogate ABC
+        algorithm.
+
+        Parameters
+        ----------
+        problem : An instance of (a subclass of) `ABC_Problem`.
+            The problem to solve.
+        S0 : int
+            Number of initial simulations
+        delta_S : int
+            Number of additional simulations, if needed
+        ksi : float
+            Error margin on the acceptance probability.
+
+        Note that while S0 and delta_S are keyword-arguments, they are
+        necessary.
+
+        Optional Arguments
+        ------------------
+        kernel_x : kernel function
+            The kernel to use in the x-direction.
+            Default Gaussian.
+        kernel_y : kernel function
+            The kernel to use in the y-direction.
+            Default Gaussian.
+        verbose : bool
+            The verbosity of the algorithm. If `True`, will print iteration
+            numbers and number of simulations. Default `False`.
+        save : bool
+            If `True`, results will be stored in a possibly existing database
+            Default `True`.
+        M : int
+            Number of bootstrap repetitions. Default 50.
+        E : int
+            Number of points to approximate conditional error. Default 50.
+
+        '''
+        super(LCKS_ABC, self).__init__(problem, **params)
+
+        self.needed_params = ['ksi', 'S0', 'delta_S']
+        assert set(self.needed_params).issubset(params.keys()), \
+            'Not enough parameters: Need {0}'.format(str(self.needed_params))
+
+        self.S0 = params['S0']
+        self.delta_S = params['delta_S']
+        self.ksi = params['ksi']
+
+        if 'kernel_x' in params.keys():
+            self.kernel_x = params['kernel_x']
+        else:
+            self.kernel_x = kernels.gaussian
+
+        if 'kernel_y' in params.keys():
+            self.kernel_y = params['kernel_y']
+        else:
+            self.kernel_y = kernels.gaussian
+
+        if 'M' in params.keys():
+            self.M = params['M']
+        else:
+            self.M = 50
+
+        if 'E' in params.keys():
+            self.E = params['E']
+        else:
+            self.E = 50
+
+        # TODO: incorporate in optional args
+        self.h_x_method = 'Silverman'
+        self.h_y_method = 'Silverman'
+        self.kernel_lowess = kernels.tricube
+
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+        self.h_x = km.set_bandwidth(self.h_x_method, np.array(self.xs).ravel())
+        self.current_sim_calls = self.S0
+
+        self.y_star = np.array(self.y_star, ndmin=1)
+
+    def reset(self):
+        super(LCKS_ABC, self).reset()
+
+        # Initialize the surrogate with S0 samples from the prior
+        self.xs = [np.array(self.prior.rvs(*self.prior_args), ndmin=1)
+                   for s in xrange(self.S0)]
+        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
+        self.current_sim_calls = self.S0
+
+    def mh_step(self):
+        numer = self.prior_logprob_p + self.proposal_logprob
+        denom = self.prior_logprob + self.proposal_logprob_p
+
+        # Shortcut
+        if np.isneginf(numer):
+            return False
+
+        while True:
+            # Turn the lists into arrays of the right shape
+            xs_a = np.array(self.xs, ndmin=2)
+            ts_a = np.array(self.ts, ndmin=2)
+
+            for j in xrange(self.y_dim):
+                # TODO: fix multi dimensional y
+                pass
+
+            # Find line
+            beta, dist_x = lowessNd(self.theta, xs_a, ts_a,
+                                    self.kernel_lowess)
+            beta_p, dist_x_p = lowessNd(self.theta_p, xs_a, ts_a,
+                                        self.kernel_lowess)
+
+            # Translate and shear
+            x_t = xs_a - self.theta
+            x_t_p = xs_a - self.theta_p
+            sheared_y = ts_a - beta[1:] * x_t
+            sheared_y_p = ts_a - beta_p[1:] * x_t_p
+
+            # TODO: Smarter use of distances calculated in lowessNd
+            weights_x = km.kernel_weights(
+                self.theta, xs_a, self.kernel_x, self.h_x_method, dist=dist_x)
+            weights_x_p = km.kernel_weights(
+                self.theta_p, xs_a, self.kernel_x, self.h_x_method, dist=dist_x_p)
+
+            alphas = np.zeros(self.M)
+            for m in xrange(self.M):
+                # Get bootstrap sample using the weights
+                bs_ys = get_bootstrap(sheared_y, weights_x)
+                bs_ys_p = get_bootstrap(sheared_y_p, weights_x_p)
+
+                other_term = 0.0
+
+                for j in xrange(self.y_dim):
+                    other_term += \
+                        km.kernel_density_estimate(
+                            self.y_star[j],
+                            bs_ys_p,
+                            self.kernel_y,
+                            self.h_y_method) - \
+                        km.kernel_density_estimate(
+                            self.y_star[j],
+                            bs_ys,
+                            self.kernel_y,
+                            self.h_y_method)
+
+                log_alpha = min(0.0, (numer - denom) + other_term)
+                alphas[m] = np.exp(log_alpha)
+
+            tau = np.median(alphas)
+
+            # Set unconditional error, using Monte Carlo estimate
+            error = np.mean([e * conditional_error(alphas, e, tau, self.M)
+                            for e in np.linspace(0, 1, self.E)])
+
+            if error > self.ksi:
+                if len(self.xs) % 10 == 0:
+                    pass
+                    # print alphas
+                    # print len(self.xs)
+                    # print error, tau
                 # Acquire training points
                 for s in xrange(self.delta_S):
                     # TODO: More intelligent way of picking points
