@@ -68,7 +68,7 @@ def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
     return mean, np.exp(log_std), 0, N
 
 
-def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ'):
+def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ', weights=None, dist=None):
     '''
     Returns the kernel regression estimate at x_star using the given kernel and
     bandwidth on the given data.
@@ -98,7 +98,7 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ'):
         `N` is the weighted number of samples used.
     '''
 
-    weights = kernel_weights(x_star, X, kernel, h)
+    weights = kernel_weights(x_star, X, kernel, h, dist=dist)
     weighted = t.T * weights
 
     N = np.log(np.sum(weights))
@@ -230,7 +230,7 @@ def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None):
     return kweights
 
 
-def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ', weights=None):
+def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ', weights=None, dist=None):
     '''
     Returns the kernel-weights for the data points given the x-star.
 
@@ -259,12 +259,18 @@ def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ', weights=None):
 
     h = set_bandwidth(h, X.ravel(), weights=weights)
 
-    u = linalg.norm(x_star - X, axis=1) / h
+    # TODO: REMOVE THIS HACK
+    if h == 0.0:
+        h = 1.0
+    if dist is None:
+        u = linalg.norm(x_star - X, axis=1) / float(h)
+    else:
+        u = dist / float(h)
     return kernel(u) / h
 
 
 def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
-                            weights=None):
+                            weights=None, dist=None):
     '''
     Returns the kernel density estimate at x_star using the given kernel and
     bandwidth on the given data.
@@ -292,6 +298,6 @@ def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
         The log of estimated density at the probe location.
     '''
 
-    kweights = kernel_weights(x_star, X, kernel, h, weights)
+    kweights = kernel_weights(x_star, X, kernel, h, weights, dist)
 
     return np.log(np.sum(kweights)) - np.log(len(X))
