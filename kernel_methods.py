@@ -68,7 +68,8 @@ def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
     return mean, np.exp(log_std), 0, N
 
 
-def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ', weights=None, dist=None):
+def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ',
+                      weights=None, dist=None):
     '''
     Returns the kernel regression estimate at x_star using the given kernel and
     bandwidth on the given data.
@@ -230,7 +231,8 @@ def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None):
     return kweights
 
 
-def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ', weights=None, dist=None):
+def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
+                   weights=None, dist=None):
     '''
     Returns the kernel-weights for the data points given the x-star.
 
@@ -291,6 +293,13 @@ def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
         Bandwidth of the kernel
     kernel : kernel class
         kernel to use for the estimate, default Gaussian
+    weights : np.array
+        The array of weights associated with the data points.
+        Default None.
+    dist : np.array
+        Array of distances to x_star for each data point. Avoids doubly
+        calculating the distances, if you already have them.
+        Default None.
 
     Returns
     -------
@@ -300,4 +309,7 @@ def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
 
     kweights = kernel_weights(x_star, X, kernel, h, weights, dist)
 
-    return np.log(np.sum(kweights)) - np.log(len(X))
+    if weights is None:
+        return np.log(np.sum(kweights)) - np.log(len(X))
+    else:
+        return np.log(np.sum(weights * kweights)) - np.log(np.sum(weights))
