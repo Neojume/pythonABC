@@ -7,65 +7,88 @@ import numpy as np
 import kernels
 import hselect
 
-
-def adaptive_kernel_regression(x_star, X, t, h, kernel=kernels.gaussian,
-                               alpha=0):
+def sample_point_adaptive_weights(X, kernel=kernels.gaussian, h='Silverman', alpha=0.5, dist=None):
     '''
-    Returns the kernel density estimate at x_star using the given kernel and
-    an adaptive bandwidth on the given data.
+    Calculates the sample point weights, using the Silverman adaptive kernel estimate.
 
     Parameters
     ----------
-    x_star : np.array
-        Estimate location
     X : np.array
         Coordinates of samples
-    t : np.array
-        Sample values
-    h : float
-        Bandwidth of the kernel
+    h : float or string
+        Bandwidth of the kernel or method to use. Default 'Silverman'
     kernel : kernel class
-        kernel to use for the estimate, default Gaussian
+        Kernel to use for the estimate. Default Gaussian
+    alpha : float
+        Sensivity parameter. Between 0 and 1. Setting to zero is equivalent to
+        normal non-adaptive KDE. Setting to one is equivalent to nearest
+        neighbor Adaptive KDE.
+    dist : np.array
+        Array of distances. This includes the distance from every point to every point.
+        Prevents costly distance calculation done multple times.
+
+    Returns
+    -------
+    log_lambda : np.array
+        The array of weights.
+    dist : np.array
+        The array of calculated distances.
+    bandwidth : float
+        The computed bandwidth.
     '''
 
-    # TODO: Fix this
-    # Calculate adaptive bandwidths
-    #bandwidth = defaultdict(lambda: alpha)
-    # for i, x1 in enumerate(X):
-    #    for x2 in X:
-    #        u = linalg.norm(x1 - x2) / h
-    #        bandwidth[i] += (kernel(u) / h) * (x1 - x2) ** 2
+    # First calculate the normal bandwidth
+    bandwidth = set_bandwidth(h, X.ravel())
 
-    n = len(X)
-    rep_X = np.repeat(X, n, 0)
-    til_X = np.tile(X, (n, 1))
-    u = linalg.norm(rep_X - til_X, axis=1)
-    r = kernel(u) * u ** 2
-    bandwidth = np.sum(np.reshape(r, (n, n)), axis=1)
+    n = X.shape[0]
 
-    #weights = np.zeros(len(X))
-    # for i, x in enumerate(X):
-    #    u = linalg.norm(x_star - x) / bandwidth[i]
-    #    weights[i] = kernel(u) / bandwidth[i]
+    # Calculate distances
+    if dist is None:
+        rep_X = np.repeat(X, n, 0)
+        til_X = np.tile(X, (n, 1))
+        dist = linalg.norm(rep_X - til_X, axis=1)
+        dist = np.reshape(dist, (n, n))
 
-    u = linalg.norm(x_star - X, axis=1) / bandwidth
-    weights = kernel(u) / bandwidth
-    weighted = t.T * weights
+    log_f_tilde = np.zeros(n)
+    log_gmean = 0.0
 
-    N = np.log(np.sum(weights))
-    mean = np.sum(weighted) / np.exp(N)
+    # Calculate the densities at each x location
+    for i, col in enumerate(dist):
+        log_f_tilde[i] = kernel_density_estimate(X[i], X, kernel, bandwidth, dist=col)
+        log_gmean += log_f_tilde[i]
 
-    summ = np.log(np.sum(np.square(mean - t).T * weights))
-    log_std = 0.5 * (summ - N)
-    weighted = weights * t
+    log_gmean /= float(n)
 
-    #N = np.log(np.sum(weights))
+    log_lambda = alpha * (log_gmean - log_f_tilde)
 
-    #mean = np.sum(weighted) / np.exp(N)
+    return log_lambda, dist, bandwidth
 
-    #sigma = np.log(np.sum(weights * np.square(mean - t)))
-    #std = 0.5 * (sigma - N)
-    return mean, np.exp(log_std), 0, N
+
+def update_dist(new_point, xs, old_dist):
+    '''
+    Updates the distance matrix to include the distances of the old points to the
+    new point.
+
+    Parameters
+    ----------
+    new_point : np.array
+        The new point to calculate all the distances to.
+    xs : np.array
+        The array of existing points.
+    old_dist : np.array
+        The old matrix of distances that needs to be augmented.
+
+    Returns
+    -------
+    dist : np.array
+        The augmented matrix of distances.
+    '''
+    new_row = calc_dist(new_point, xs)
+
+    dist = np.vstack([old_dist, new_row[:-1]])
+    dist = np.column_stack([dist, new_row])
+
+    return dist
 
 
 def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ',
@@ -144,6 +167,13 @@ def set_bandwidth(method, xs, weights=None):
         h = bandwidth_func[method](xs, weights)
 
     return h
+
+
+def calc_dist(x_star, X):
+    '''
+    Calculate the distance of all points in X to x_star.
+    '''
+    return linalg.norm(x_star - X, axis=1)
 
 
 def doubly_kernel_estimate(x_star, y_star, X, t,
@@ -232,7 +262,7 @@ def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None):
 
 
 def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
-                   weights=None, dist=None):
+                   weights=None, dist=None, ind_h=None):
     '''
     Returns the kernel-weights for the data points given the x-star.
 
@@ -252,6 +282,8 @@ def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
         kernel to use for the estimate, default Gaussian
     h : float or string
         Bandwidth of the kernel
+    ind_h : np.array
+        Individual bandwidth terms, sometimes denoted lambda.
 
     Returns
     -------
@@ -265,10 +297,14 @@ def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
     if h == 0.0:
         h = 1.0
     if dist is None:
-        u = linalg.norm(x_star - X, axis=1) / float(h)
+        u = linalg.norm(x_star - X, axis=1)
     else:
-        u = dist / float(h)
-    return kernel(u) / h
+        u = dist
+    if ind_h is None:
+        return kernel(u / h) / h
+    else:
+        h_arr = h * ind_h
+        return kernel(u / h_arr) / h_arr
 
 
 def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
