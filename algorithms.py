@@ -1310,204 +1310,6 @@ class DKS_ABC(Base_MCMC_ABC):
         return distr.uniform.rvs() < tau
 
 
-class LCKS_ABC(Base_MCMC_ABC):
-
-    '''
-    Linear Corrected Kernel Surrogate - ABC
-    -----------------------------
-    Approximates the simulator using a kernel weights on the x and a kernel
-    density estimate on the y, while using a linear regression to correct
-    projection.
-    '''
-
-    def __init__(self, problem, **params):
-        '''
-        Creates an instance of the Linear Corrected Kernel Surrogate ABC
-        algorithm.
-
-        Parameters
-        ----------
-        problem : An instance of (a subclass of) `ABC_Problem`.
-            The problem to solve.
-        S0 : int
-            Number of initial simulations
-        delta_S : int
-            Number of additional simulations, if needed
-        ksi : float
-            Error margin on the acceptance probability.
-
-        Note that while S0 and delta_S are keyword-arguments, they are
-        necessary.
-
-        Optional Arguments
-        ------------------
-        kernel_x : kernel function
-            The kernel to use in the x-direction.
-            Default Gaussian.
-        kernel_y : kernel function
-            The kernel to use in the y-direction.
-            Default Gaussian.
-        verbose : bool
-            The verbosity of the algorithm. If `True`, will print iteration
-            numbers and number of simulations. Default `False`.
-        save : bool
-            If `True`, results will be stored in a possibly existing database
-            Default `True`.
-        M : int
-            Number of bootstrap repetitions. Default 50.
-        E : int
-            Number of points to approximate conditional error. Default 50.
-
-        '''
-        super(LCKS_ABC, self).__init__(problem, **params)
-
-        self.needed_params = ['ksi', 'S0', 'delta_S']
-        assert set(self.needed_params).issubset(params.keys()), \
-            'Not enough parameters: Need {0}'.format(str(self.needed_params))
-
-        self.S0 = params['S0']
-        self.delta_S = params['delta_S']
-        self.ksi = params['ksi']
-
-        if 'kernel_x' in params.keys():
-            self.kernel_x = params['kernel_x']
-        else:
-            self.kernel_x = kernels.gaussian
-
-        if 'kernel_y' in params.keys():
-            self.kernel_y = params['kernel_y']
-        else:
-            self.kernel_y = kernels.gaussian
-
-        if 'M' in params.keys():
-            self.M = params['M']
-        else:
-            self.M = 50
-
-        if 'E' in params.keys():
-            self.E = params['E']
-        else:
-            self.E = 50
-
-        # TODO: incorporate in optional args
-        self.h_x_method = 'Silverman'
-        self.h_y_method = 'Silverman'
-        self.kernel_lowess = kernels.tricube
-
-        # Initialize the surrogate with S0 samples from the prior
-        self.xs = list(self.prior.rvs(*self.prior_args, N=self.S0))
-        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
-        self.h_x = km.set_bandwidth(self.h_x_method, np.array(self.xs).ravel())
-        self.current_sim_calls = self.S0
-
-        self.y_star = np.array(self.y_star, ndmin=1)
-
-    def reset(self):
-        super(LCKS_ABC, self).reset()
-
-        # Initialize the surrogate with S0 samples from the prior
-        self.xs = [np.array(self.prior.rvs(*self.prior_args), ndmin=1)
-                   for s in xrange(self.S0)]
-        self.ts = [self.statistics(self.simulator(x)) for x in self.xs]
-        self.current_sim_calls = self.S0
-
-    def mh_step(self):
-        numer = self.prior_logprob_p + self.proposal_logprob
-        denom = self.prior_logprob + self.proposal_logprob_p
-
-        # Shortcut
-        if np.isneginf(numer):
-            return False
-
-        while True:
-            # Turn the lists into arrays of the right shape
-            xs_a = np.array(self.xs, ndmin=2)
-            ts_a = np.array(self.ts, ndmin=2)
-
-            dist_x = km.calc_dist(self.theta, xs_a)
-            dist_x_p = km.calc_dist(self.theta_p, xs_a)
-
-            h_x = km.set_bandwidth(self.h_x_method, xs_a)
-            weights_x = km.kernel_weights(
-                self.theta, xs_a, self.kernel_x, h_x, dist=dist_x)
-            weights_x_p = km.kernel_weights(
-                self.theta_p, xs_a, self.kernel_x, h_x, dist=dist_x_p)
-
-            sheared_y = dict()
-            sheared_y_p = dict()
-
-            for j in xrange(self.y_dim):
-                # Find line
-                beta, dist_x = lowessNd(self.theta, xs_a, ts_a,
-                                        self.kernel_lowess)
-                beta_p, dist_x_p = lowessNd(self.theta_p, xs_a, ts_a,
-                                            self.kernel_lowess)
-
-                # Translate and shear
-                x_t = xs_a - self.theta
-                x_t_p = xs_a - self.theta_p
-
-                sheared_y[j] = ts_a - np.sum(beta[1:] * x_t, axis=1, keepdims=True)
-                sheared_y_p[j] = ts_a - np.sum(beta_p[1:] * x_t_p, axis=1, keepdims=True)
-
-            alphas = np.zeros(self.M)
-            for m in xrange(self.M):
-                # Get bootstrap sample using the weights
-                bs_ids = get_bootstrap_ids(self.current_sim_calls, weights_x)
-                bs_ids_p = get_bootstrap_ids(self.current_sim_calls, weights_x_p)
-
-                other_term = 0.0
-
-                for j in xrange(self.y_dim):
-                    other_term += \
-                        km.kernel_density_estimate(
-                            self.y_star[j],
-                            sheared_y_p[j][bs_ids_p],
-                            self.kernel_y,
-                            self.h_y_method) - \
-                        km.kernel_density_estimate(
-                            self.y_star[j],
-                            sheared_y[j][bs_ids],
-                            self.kernel_y,
-                            self.h_y_method)
-
-                log_alpha = min(0.0, (numer - denom) + other_term)
-                alphas[m] = np.exp(log_alpha)
-
-            tau = np.median(alphas)
-
-            # Set unconditional error, using Monte Carlo estimate
-            error = np.mean([e * conditional_error(alphas, e, tau, self.M)
-                            for e in np.linspace(0, 1, self.E)])
-
-            if error > self.ksi:
-                if len(self.xs) % 10 == 0:
-                    pass
-                    # print alphas
-                    # print len(self.xs)
-                    # print error, tau
-                # Acquire training points
-                for s in xrange(self.delta_S):
-                    # TODO: More intelligent way of picking points
-
-                    # new_x = self.prior.rvs(*self.prior_args)
-                    if distr.uniform.rvs() > 0.5:
-                        new_x = self.theta
-                    else:
-                        new_x = self.theta_p
-                    self.ts.append(self.statistics(self.simulator(new_x)))
-                    self.xs.append(new_x)
-                self.current_sim_calls += self.delta_S
-
-                # Recalculate bandwidth
-                #self.h_x = km.set_bandwidth(
-                #    self.h_x_method, np.array(self.xs).ravel())
-            else:
-                break
-
-        return distr.uniform.rvs() < tau
-
-
 class LCKS_ABC2(Base_MCMC_ABC):
 
     '''
@@ -1644,16 +1446,15 @@ class LCKS_ABC2(Base_MCMC_ABC):
 
             if np.sum(weights_x) + np.sum(weights_x_p) < 2 * self.S:
                 for s in xrange(self.delta_S):
-                    # TODO: More intelligent way of picking points
-                    # new_x = self.prior.rvs(*self.prior_args)
                     if distr.uniform.rvs() > 0.5:
                         new_x = self.theta
                     else:
                         new_x = self.theta_p
+
                     self.ts.append(self.statistics(self.simulator(new_x)))
                     self.xs.append(new_x)
-                self.current_sim_calls += self.delta_S
 
+                self.current_sim_calls += self.delta_S
             else:
                 other_term = 0.0
 
@@ -1678,17 +1479,31 @@ class LCKS_ABC2(Base_MCMC_ABC):
         return distr.uniform.rvs() < np.exp(log_alpha)
 
 
-class LCAKS_ABC(Base_MCMC_ABC):
+class LCKS_ABC(Base_MCMC_ABC):
 
     '''
-    Linear Corrected Adaptive Kernel Surrogate - ABC
+    Linear Corrected Kernel Surrogate - ABC
     -----------------------------
     Approximates the simulator using a kernel weights on the x and a kernel
     density estimate on the y, while using a linear regression to correct
     projection.
     '''
 
-    def __init__(self, problem, **params):
+    def __init__(self, problem,
+                 S0,
+                 delta_S,
+                 ksi,
+                 kernel_x=kernels.gaussian,
+                 h_x_method='Silverman',
+                 kernel_y=kernels.gaussian,
+                 h_y_method='Silverman',
+                 kernel_lowess=kernels.tricube,
+                 M=50,
+                 E=50,
+                 adaptive=False,
+                 alpha=0.5,
+                 verbose=False,
+                 save=True):
         '''
         Creates an instance of the Linear Corrected Kernel Surrogate ABC
         algorithm.
@@ -1712,56 +1527,54 @@ class LCAKS_ABC(Base_MCMC_ABC):
         kernel_x : kernel function
             The kernel to use in the x-direction.
             Default Gaussian.
+        h_x_method : float or string
+            The method to estimate the bandwidth with in the x direction.
+            Default Silvermans rule of thumb.
         kernel_y : kernel function
             The kernel to use in the y-direction.
             Default Gaussian.
+        h_y_method : float or string
+            The method to estimate the bandwidth with in the y direction.
+            Default Silvermans rule of thumb.
+        kernel_lowess : kernel function
+            The kernel to use for the local linear regression.
+            Default Tricube.
+        M : int
+            Number of bootstrap repetitions. Default 50.
+        E : int
+            Number of points to approximate conditional error. Default 50.
+        adaptive : bool
+            Whether to use adaptive kernel density estimates. AKDE works
+            better in higher dimensions.
+            Default `False`.
+        alpha : float
+            The sensivity parameter for the sample point adaptive estimator.
+            Only used when adaptive is set to `True`.
+            Default 0.5.
         verbose : bool
             The verbosity of the algorithm. If `True`, will print iteration
             numbers and number of simulations. Default `False`.
         save : bool
             If `True`, results will be stored in a possibly existing database
             Default `True`.
-        M : int
-            Number of bootstrap repetitions. Default 50.
-        E : int
-            Number of points to approximate conditional error. Default 50.
-
         '''
-        super(LCAKS_ABC, self).__init__(problem, **params)
+        super(LCKS_ABC, self).__init__(problem, verbose=verbose, save=save)
 
         self.needed_params = ['ksi', 'S0', 'delta_S']
-        assert set(self.needed_params).issubset(params.keys()), \
-            'Not enough parameters: Need {0}'.format(str(self.needed_params))
 
-        self.S0 = params['S0']
-        self.delta_S = params['delta_S']
-        self.ksi = params['ksi']
+        self.S0 = S0
+        self.delta_S = delta_S
+        self.ksi = ksi
 
-        if 'kernel_x' in params.keys():
-            self.kernel_x = params['kernel_x']
-        else:
-            self.kernel_x = kernels.gaussian
-
-        if 'kernel_y' in params.keys():
-            self.kernel_y = params['kernel_y']
-        else:
-            self.kernel_y = kernels.gaussian
-
-        if 'M' in params.keys():
-            self.M = params['M']
-        else:
-            self.M = 50
-
-        if 'E' in params.keys():
-            self.E = params['E']
-        else:
-            self.E = 50
-
-        # TODO: incorporate in optional args
-        self.h_x_method = 'Silverman'
-        self.h_y_method = 'Silverman'
-        self.kernel_lowess = kernels.tricube
-        self.alpha = 0.5
+        self.kernel_x = kernel_x
+        self.h_x_method = h_x_method
+        self.kernel_y = kernel_y
+        self.h_y_method = h_y_method
+        self.kernel_lowess = kernel_lowess
+        self.M = M
+        self.E = E
+        self.alpha = alpha
+        self.adaptive = adaptive
 
         # Initialize the surrogate with S0 samples from the prior
         self.xs = [self.prior.rvs(*self.prior_args) for i in range(self.S0)]
@@ -1771,13 +1584,21 @@ class LCAKS_ABC(Base_MCMC_ABC):
 
         # Calculate the distances
         xs_a = np.array(self.xs, ndmin=2)
-        self.log_lambda, self.dist, self.h_x = \
-            km.sample_point_adaptive_weights(xs_a, self.kernel_x, self.h_x_method, self.alpha)
+        if self.adaptive:
+            log_ind_h, self.dist, self.h_x = \
+                km.sample_point_adaptive_weights(xs_a,
+                                                 self.kernel_x,
+                                                 self.h_x_method,
+                                                 self.alpha)
+            self.ind_h = np.exp(log_ind_h)
+        else:
+            self.h_x = km.set_bandwidth(self.h_x_method, xs_a)
+            self.ind_h = None
 
         self.y_star = np.array(self.y_star, ndmin=1)
 
     def reset(self):
-        super(LCAKS_ABC, self).reset()
+        super(LCKS_ABC, self).reset()
 
         # Initialize the surrogate with S0 samples from the prior
         self.xs = [np.array(self.prior.rvs(*self.prior_args), ndmin=1)
@@ -1801,25 +1622,36 @@ class LCAKS_ABC(Base_MCMC_ABC):
             dist_x = km.calc_dist(self.theta, xs_a)
             dist_x_p = km.calc_dist(self.theta_p, xs_a)
 
-            #weights_x = km.kernel_weights(
-            #    self.theta, xs_a, self.kernel_x, self.h_x, weights=np.exp(self.log_lambda), dist=dist_x)
-            #weights_x_p = km.kernel_weights(
-            #    self.theta_p, xs_a, self.kernel_x, self.h_x, weights=np.exp(self.log_lambda), dist=dist_x_p)
-
-            weights_x = km.kernel_weights(
-                self.theta, xs_a, self.kernel_x, self.h_x, ind_h=np.exp(self.log_lambda), dist=dist_x)
-            weights_x_p = km.kernel_weights(
-                self.theta_p, xs_a, self.kernel_x, self.h_x, ind_h=np.exp(self.log_lambda), dist=dist_x_p)
+            weights_x = \
+                km.kernel_weights(self.theta,
+                                  xs_a,
+                                  self.kernel_x,
+                                  self.h_x,
+                                  ind_h=self.ind_h,
+                                  dist=dist_x)
+            weights_x_p = \
+                km.kernel_weights(self.theta_p,
+                                  xs_a,
+                                  self.kernel_x,
+                                  self.h_x,
+                                  ind_h=self.ind_h,
+                                  dist=dist_x_p)
 
             sheared_y = dict()
             sheared_y_p = dict()
 
             for j in xrange(self.y_dim):
                 # Find line
-                beta, dist_x = lowessNd(self.theta, xs_a, ts_a,
-                                        self.kernel_lowess)
-                beta_p, dist_x_p = lowessNd(self.theta_p, xs_a, ts_a,
-                                            self.kernel_lowess)
+                beta, dist_x = \
+                    lowessNd(self.theta,
+                             xs_a,
+                             ts_a,
+                             self.kernel_lowess)
+                beta_p, dist_x_p = \
+                    lowessNd(self.theta_p,
+                             xs_a,
+                             ts_a,
+                             self.kernel_lowess)
 
                 # Translate and shear
                 x_t = xs_a - self.theta
@@ -1859,37 +1691,77 @@ class LCAKS_ABC(Base_MCMC_ABC):
                             for e in np.linspace(0, 1, self.E)])
 
             if error > self.ksi:
-                if len(self.xs) % 10 == 0:
-                    pass
-                    # print alphas
-                    # print len(self.xs)
-                    # print error, tau
                 # Acquire training points
                 for s in xrange(self.delta_S):
-                    # TODO: More intelligent way of picking points
-
-                    # new_x = self.prior.rvs(*self.prior_args)
                     if distr.uniform.rvs() > 0.5:
                         new_x = self.theta
                     else:
                         new_x = self.theta_p
+
                     self.ts.append(self.statistics(self.simulator(new_x)))
                     self.xs.append(new_x)
-                    self.dist = km.update_dist(new_x, self.xs, self.dist)
+
+                    if self.adaptive:
+                        # Update distances matrix
+                        self.dist = km.update_dist(new_x, self.xs, self.dist)
+
                 self.current_sim_calls += self.delta_S
 
-                self.log_lambda, _, self.h_x = \
-                    km.sample_point_adaptive_weights(
-                        np.array(self.xs, ndmin=2),
-                        self.kernel_x,
-                        self.h_x_method,
-                        self.alpha,
-                        self.dist)
-
-                # Recalculate bandwidth
-                #self.h_x = km.set_bandwidth(
-                #    self.h_x_method, np.array(self.xs).ravel())
+                if self.adaptive:
+                    # Update individual bandwidths
+                    log_lambda, _, self.h_x = \
+                        km.sample_point_adaptive_weights(
+                            np.array(self.xs, ndmin=2),
+                            self.kernel_x,
+                            self.h_x_method,
+                            self.alpha,
+                            self.dist)
+                    self.ind_h = np.exp(log_lambda)
+                else:
+                    self.h_x = km.set_bandwidth(self.h_x_method, xs_a)
             else:
                 break
 
         return distr.uniform.rvs() < tau
+
+
+class LCAKS_ABC(LCKS_ABC):
+
+    '''
+    Linear Corrected Adaptive Kernel Surrogate - ABC
+    -----------------------------
+    Approximates the simulator using a kernel weights on the x and a kernel
+    density estimate on the y, while using a linear regression to correct
+    projection.
+    '''
+
+    def __init__(self, problem,
+                 S0,
+                 delta_S,
+                 ksi,
+                 kernel_x=kernels.gaussian,
+                 h_x_method='Silverman',
+                 kernel_y=kernels.gaussian,
+                 h_y_method='Silverman',
+                 kernel_lowess=kernels.tricube,
+                 M=50,
+                 E=50,
+                 alpha=0.5,
+                 verbose=False,
+                 save=True):
+
+        super(LCAKS_ABC, self).__init__(problem,
+                                        S0,
+                                        delta_S,
+                                        ksi,
+                                        kernel_x,
+                                        h_x_method,
+                                        kernel_y,
+                                        h_y_method,
+                                        kernel_lowess,
+                                        M,
+                                        E,
+                                        True,
+                                        alpha,
+                                        verbose,
+                                        save)
