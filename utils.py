@@ -3,6 +3,48 @@ import matplotlib.pyplot as plt
 import kernel_methods as km
 
 
+def get_bootstrap_ids(N, weights=None):
+    if weights is None:
+        ids = np.random.random_integers(0, N - 1, N)
+
+        return ids
+    else:
+        target = float(sum(weights))
+
+        c = np.cumsum(weights)
+        ids = []
+
+        w = 0.0
+        while w < target:
+            sid = np.searchsorted(c, np.random.uniform(0, target))
+            ids.append(sid)
+            w += weights[sid]
+
+        return np.array(ids)
+
+
+def get_bootstrap(values, weights=None):
+    values = np.asarray(values)
+
+    if weights is None:
+        ids = np.random.random_integers(0, len(values) - 1, len(values))
+
+        return values[ids]
+    else:
+        target = float(sum(weights))
+
+        c = np.cumsum(weights)
+        samples = []
+
+        w = 0.0
+        while w < target:
+            sid = np.searchsorted(c, np.random.uniform(0, target))
+            samples.append(values[sid])
+            w += weights[sid]
+
+        return np.array(samples)
+
+
 def get_weighted_bootstrap(values, weights, num_samples):
     '''
     Get a bootstrap sample of the given values, each value picked with the
@@ -13,17 +55,6 @@ def get_weighted_bootstrap(values, weights, num_samples):
     c = np.cumsum(weights)
     r = np.random.uniform(0, sum(weights), num_samples)
     return values[np.searchsorted(c, r)]
-
-
-def get_bootstrap(samples):
-    '''
-    Get a bootstrap sample of the given samples.
-    '''
-
-    samples = np.asarray(samples)
-    ids = np.random.random_integers(0, len(samples) - 1, len(samples))
-
-    return samples[ids]
 
 
 def conditional_error(alphas, u, tau, M):
@@ -59,11 +90,14 @@ def plot_samples(problem, samples):
     of the samples.
     '''
 
-    asamples = np.array(samples)
+    asamples = np.array(samples, ndmin=2)
     print asamples.shape
+    num_samples = asamples.shape[0]
     pars = problem.simulator_args
     num_pars = len(pars)
+    print num_pars
     has_true_vals = problem.true_args is not None
+    has_true_post = problem.true_posterior is not None
 
     par_values = dict()
 
@@ -81,6 +115,7 @@ def plot_samples(problem, samples):
 
     axes = dict()
 
+    plt.figure(0)
     for i, par1 in enumerate(pars):
         for j, par2 in enumerate(pars):
             axes[i, j] = plt.subplot(num_pars, num_pars, num_pars * i + j + 1)
@@ -91,12 +126,17 @@ def plot_samples(problem, samples):
 
             if i == j:
                 # Same parameter, so make a histogram
-                ax.hist(par_values[par1], 50)
+                ax.hist(par_values[par1], 50, normed=True)
                 if has_true_vals:
                     ax.axvline(problem.true_args[i], color='r')
+
+                if has_true_post:
+                    lim = problem.true_posterior_rng
+                    rng = np.linspace(lim[0], lim[1], 100)
+                    ax.plot(rng, problem.true_posterior.pdf(rng, *problem.true_posterior_args))
             else:
                 # Different parameters, make scatterplot
-                ax.scatter(par_values[par2], par_values[par1], alpha=0.1)
+                ax.scatter(par_values[par2], par_values[par1], c=range(num_samples), cmap=plt.get_cmap('autumn'))
                 if has_true_vals:
                     ax.scatter(problem.true_args[j], problem.true_args[i],
                                color='r')
@@ -149,6 +189,30 @@ def plot_samples(problem, samples):
                     continue
                 axes[i, j].set_ylim(ysmin[i], ysmax[i])
 
+    ys = np.zeros((asamples.shape[0], problem.y_dim))
+    for i, s in enumerate(samples):
+        ys[i,:] = problem.statistics(problem.simulator(s))
+
+    plt.figure(1)
+    for i in range(problem.y_dim):
+        plt.subplot(problem.y_dim, 1, i)
+        plt.hist(ys[:,i], 30)
+        plt.axvline(problem.y_star[i], c='r')
+
+def plot_statistics(problem, samples):
+
+    asamples = np.array(samples, ndmin=2)
+
+    ys = np.zeros((asamples.shape[0], problem.y_dim))
+    for i, s in enumerate(samples):
+        ys[i,:] = problem.statistics(problem.simulator(s))
+
+    plt.figure(1)
+    for i in range(problem.y_dim):
+        plt.subplot(problem.y_dim, 1, i)
+        plt.hist(ys[:,i], 30)
+        plt.axvline(problem.y_star[i], c='r')
+
 
 def plot_krs(xs, ts, h, rng, y_star):
     '''
@@ -195,3 +259,72 @@ def plot_krs(xs, ts, h, rng, y_star):
     plt.ylim(-4, 4)
     #plt.ylim(-4, 14)
     plt.title('S = {0}, h = {1}'.format(len(xs), h))
+
+def peakdet(v, delta, x = None):
+    import sys
+    from numpy import NaN, Inf, arange, isscalar, array
+    '''
+    Converted from MATLAB script at http://billauer.co.il/peakdet.html
+    Returns two arrays
+    function [maxtab, mintab]=peakdet(v, delta, x)
+    %PEAKDET Detect peaks in a vector
+    % [MAXTAB, MINTAB] = PEAKDET(V, DELTA) finds the local
+    % maxima and minima ("peaks") in the vector V.
+    % MAXTAB and MINTAB consists of two columns. Column 1
+    % contains indices in V, and column 2 the found values.
+    %
+    % With [MAXTAB, MINTAB] = PEAKDET(V, DELTA, X) the indices
+    % in MAXTAB and MINTAB are replaced with the corresponding
+    % X-values.
+    %
+    % A point is considered a maximum peak if it has the maximal
+    % value, and was preceded (to the left) by a value lower by
+    % DELTA.
+    % Eli Billauer, 3.4.05 (Explicitly not copyrighted).
+    % This function is released to the public domain; Any use is allowed.
+    '''
+    maxtab = []
+    mintab = []
+
+    if x is None:
+        x = arange(len(v))
+
+    #v = asarray(v)
+
+    if len(v) != len(x):
+        sys.exit('Input vectors v and x must have same length')
+
+    if not isscalar(delta):
+        sys.exit('Input argument delta must be a scalar')
+
+    if delta <= 0:
+        sys.exit('Input argument delta must be positive')
+
+    mn, mx = Inf, -Inf
+    mnpos, mxpos = NaN, NaN
+
+    lookformax = True
+
+    for i in arange(len(v)):
+        this = v[i]
+        if this > mx:
+            mx = this
+            mxpos = x[i]
+        if this < mn:
+            mn = this
+            mnpos = x[i]
+
+        if lookformax:
+            if this < mx-delta:
+                maxtab.append((mxpos, mx))
+                mn = this
+                mnpos = x[i]
+                lookformax = False
+        else:
+            if this > mn + delta:
+                mintab.append((mnpos, mn))
+                mx = this
+                mxpos = x[i]
+                lookformax = True
+
+    return array(maxtab), array(mintab)
