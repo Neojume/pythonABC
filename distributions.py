@@ -10,6 +10,7 @@ import collections
 import numpy as np
 import pylab as pp
 import scipy.special as special
+from scipy import stats
 from scipy.integrate import quad
 
 
@@ -22,7 +23,7 @@ class proportional(object):
     Works only for 1D densities.
     '''
 
-    def __init__(self, proportional_function):
+    def __init__(self, proportional_function, lower_limit=-np.inf, upper_limit=np.inf):
         '''
         Initialize this distribution class by precalculating the normalization
         constant.
@@ -34,19 +35,21 @@ class proportional(object):
         '''
 
         self.proportional_function = proportional_function
+        self.lower_limit = lower_limit
+        self.upper_limit = upper_limit
         self.normalization, _ = quad(
             self.proportional_function,
-            -np.inf,
-            np.inf)
+            lower_limit,
+            upper_limit)
 
     def pdf(self, x):
         return self.proportional_function(x) / self.normalization
 
     def cdf(self, x):
         if isinstance(x, collections.Iterable):
-            val = np.array([quad(self.pdf, -np.inf, i)[0] for i in x])
+            val = np.array([quad(self.pdf, self.lower_limit, np.clip(i, self.lower_limit, self.upper_limit))[0] for i in x])
         else:
-            val = quad(self.pdf, -np.inf, x)[0]
+            val = quad(self.proportional_function, self.lower_limit, np.clip(x, self.lower_limit, self.upper_limit))[0] / self.normalization
         return val
 
 
@@ -73,6 +76,16 @@ class gamma(object):
         return special.gammainc(alpha, x * beta)
 
     @staticmethod
+    def cdf(x, alpha, beta):
+        g = stats.gamma(alpha, 0, 1.0 / beta)
+        return g.cdf(x)
+
+    @staticmethod
+    def icdf(x, alpha, beta):
+        g = stats.gamma(alpha, 0, 1.0 / beta)
+        return g.ppf(x)
+
+    @staticmethod
     def rvs(alpha, beta, N=1):
         return np.random.gamma(alpha, 1.0 / beta, N)
 
@@ -83,14 +96,27 @@ class beta(object):
     The Beta distribution.
     '''
 
-    def pdf(x, alpha, beta):
-        return np.exp(beta.logpdf(x, alpha, beta))
+    @staticmethod
+    def pdf(x, a, b):
+        return np.exp(beta.logpdf(x, a, b))
 
-    def logdf(x, alpha, beta):
+    @staticmethod
+    def logpdf(x, alpha, beta):
         return (alpha - 1) * np.log(x) + (beta - 1) * np.log(1 - x) + \
             special.gammaln(alpha + beta) - special.gammaln(alpha) - \
             special.gammaln(beta)
 
+    @staticmethod
+    def cdf(x, alpha, beta):
+        g = stats.beta(alpha, beta)
+        return g.cdf(x)
+
+    @staticmethod
+    def icdf(x, alpha, beta):
+        g = stats.beta(alpha, beta)
+        return g.ppf(x)
+
+    @staticmethod
     def rvs(alpha, beta, N=1):
         return np.random.beta(alpha, beta, N)
 
@@ -162,7 +188,7 @@ class lognormal(object):
 
     @staticmethod
     def rvs(mu, sigma):
-        return np.random.lognormal(mu, sigma)
+        return np.array([np.random.lognormal(mu, sigma)])
 
 
 class logitnormal(object):
@@ -185,6 +211,24 @@ class logitnormal(object):
     def rvs(mu, sigma):
         # TODO: Implement
         pass
+
+class poisson(object):
+
+    '''
+    The Poisson distribution.
+    '''
+
+    @staticmethod
+    def pdf(x, mu):
+        return np.exp(poisson.logpdf(x, mu))
+
+    @staticmethod
+    def logpdf(x, mu):
+        return (x - 1) * np.log(mu) - special.gammaln(x - 1) - mu
+
+    @staticmethod
+    def rvs(mu, N=1):
+        return np.random.poisson(mu, N)
 
 
 class uniform(object):
@@ -309,11 +353,13 @@ class multivariate_mixture(object):
             logpdf += distribution.logpdf(theta, *arguments)
         return logpdf
 
-    def rvs(self):
+    def rvs(self, N=1):
         D = len(self.distrs)
         thetas = np.zeros((D, N))
         for t, theta, distribution, arguments in zip(range(D), thetas, self.distrs, self.args):
-            thetas[t,:] =  distribution.rvs(*arguments, N=N)
+            thetas[t, :] = distribution.rvs(*arguments, N=N)
+        if N == 1:
+            return thetas.ravel()
         return thetas
 
 # TODO: Implement more multidimensional distributions
