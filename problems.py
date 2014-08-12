@@ -11,7 +11,8 @@ from abc import ABCMeta, abstractmethod
 __all__ = ['ABC_Problem', 'Exponential_Problem',
            'Wilkinson_Problem', 'Sinus_Problem',
            'Radar_Problem', 'Sinus2D_Problem',
-           'Multimodal_Sinus_Problem', 'Heavy_Tailed_Sinus_Problem']
+           'Multimodal_Sinus_Problem', 'Heavy_Tailed_Sinus_Problem',
+           'Heavy_Wilkinson_Problem', 'Coin_Problem']
 
 
 class ABC_Problem(object):
@@ -70,8 +71,8 @@ class Exponential_Problem(ABC_Problem):
     '''
 
     def __init__(self, y_star=9.42, true_args=0.1, N=500):
-        self.y_star = y_star
-        self.true_args = true_args
+        self.y_star = np.array([y_star])
+        self.true_args = np.array([true_args])
         self.y_dim = 1
 
         self.N = N
@@ -91,11 +92,14 @@ class Exponential_Problem(ABC_Problem):
             self.prior_args[0] + self.N,
             self.prior_args[1] + self.N * self.y_star]
 
+        self.simulator_args = ['theta']
+
     def get_theta_init(self):
-        return 0.1
+        return np.array([0.1])
+        #return self.prior.rvs(*self.prior_args)
 
     def statistics(self, vals):
-        return np.mean(vals)
+        return np.mean(vals, keepdims=True)
 
     def simulator(self, theta):
         return distr.exponential.rvs(theta, self.N)
@@ -111,8 +115,8 @@ class Wilkinson_Problem(ABC_Problem):
     '''
 
     def __init__(self):
-        self.y_star = 2.0
-        self.true_args = 2.1150
+        self.y_star = np.array([2.0])
+        self.true_args = [2.1150]
         self.y_dim = 1
 
         self.prior = distr.uniform
@@ -125,6 +129,7 @@ class Wilkinson_Problem(ABC_Problem):
         self.true_posterior_args = []
 
         self.rng = [-10, 10]
+        self.simulator_args = ['theta']
 
         self.proposal = distr.normal
         self.proposal_args = [2]
@@ -151,7 +156,7 @@ class Sinus_Problem(ABC_Problem):
     '''
 
     def __init__(self):
-        self.y_star = 1.3
+        self.y_star = np.array([1.3])
         self.y_dim = 1
 
         self.prior = distr.uniform
@@ -168,6 +173,8 @@ class Sinus_Problem(ABC_Problem):
             self.y_star, self.true_function(x), 0.2)
         self.true_posterior = distr.proportional(proportional)
         self.true_posterior_args = []
+
+        self.simulator_args = ['theta']
 
     def get_theta_init(self):
         return self.prior.rvs(*self.prior_args)
@@ -204,6 +211,7 @@ class Radar_Problem(ABC_Problem):
         self.rng = [0, 2 * np.pi]
 
         self.simulator_args = ['theta']
+        self.used_theta = [1.10]
 
     def get_theta_init(self):
         return self.prior.rvs(*self.proposal_args)
@@ -219,11 +227,11 @@ class Radar_Problem(ABC_Problem):
 class Sinus2D_Problem(ABC_Problem):
 
     '''
-    A toy 2D problem, to test multiple dimensions.
+    A toy 2D problem, to test multiple dimensions in theta.
     '''
 
     def __init__(self):
-        self.y_star = 1.4
+        self.y_star = np.array([1.4])
         self.y_dim = 1
         self.simulator_args = ['x', 'y']
 
@@ -255,7 +263,7 @@ class Multimodal_Sinus_Problem(ABC_Problem):
     '''
 
     def __init__(self):
-        self.y_star = 7
+        self.y_star = np.array([7])
         self.y_dim = 1
 
         self.prior = distr.uniform
@@ -266,6 +274,15 @@ class Multimodal_Sinus_Problem(ABC_Problem):
         self.proposal = distr.normal
         self.proposal_args = [1.5]
         self.use_log = False
+
+        proportional = lambda x: distr.normal.pdf(
+            self.y_star, 2 * np.sin(x) + 3 , 0.5) + \
+                distr.normal.pdf(self.y_star, 6 * np.sin(x) + 3, 0.5)
+        self.true_posterior_rng = [0, np.pi]
+        self.true_posterior = distr.proportional(proportional, lower_limit=0, upper_limit=2 * np.pi)
+        self.true_posterior_args = []
+
+        self.simulator_args = ['theta']
 
     def get_theta_init(self):
         return self.prior.rvs(*self.prior_args)
@@ -281,25 +298,70 @@ class Multimodal_Sinus_Problem(ABC_Problem):
             return 6 * np.sin(theta) + 3 + noise
 
 
+class Heavy_Wilkinson_Problem(ABC_Problem):
+
+    '''
+    Toy problem of Richard Wilkinson from his NIPS tutorial, only now with a heavy tail
+    '''
+
+    def __init__(self):
+        self.y_star = np.array([2.0])
+        self.true_args = np.array([2.1150])
+        self.y_dim = 1
+
+        self.simulator_args = ['theta']
+
+        self.prior = distr.uniform
+        self.prior_args = [-4, 4]
+
+        self.true_posterior_rng = [-3.5, 3.5]
+        proportional = lambda x: distr.gamma.pdf(
+            np.clip(self.true_function(x) - self.y_star, 0, 1e100), 2, 2)
+        self.true_posterior = distr.proportional(proportional, -3.5, 3.5)
+        self.true_posterior_args = []
+
+        self.rng = [-4, 4]
+
+        self.proposal = distr.normal
+        self.proposal_args = [2]
+        self.use_log = False
+
+    def get_theta_init(self):
+        return 0.5
+
+    def statistics(self, val):
+        return val
+
+    def true_function(self, theta):
+        return 2 * (theta + 2) * theta * (theta - 2)
+
+    def simulator(self, theta):
+        mu = 2 * (theta + 2) * theta * (theta - 2)
+        return mu - distr.gamma.rvs(2, 2)
+
+
 class Heavy_Tailed_Sinus_Problem(ABC_Problem):
     def __init__(self):
-        self.y_star = 0.1
+        self.y_star = np.array([0.1])
         self.y_dim = 1
 
         self.prior = distr.uniform
-        self.prior_args = [0, np.pi]
+        self.prior_args = [0, 1.5 * np.pi]
 
-        self.rng = [0, np.pi]
+        self.rng = [0, 1.5* np.pi]
 
         self.proposal = distr.normal
         self.proposal_args = [1]
         self.use_log = False
 
         self.true_posterior_rng = self.rng
-        proportional = lambda x: distr.normal.pdf(
-            self.y_star, self.true_function(x), 0.2)
-        self.true_posterior = distr.proportional(proportional)
+        proportional = lambda x: distr.gamma.pdf(
+            np.clip(self.true_function(x) - self.y_star, 0, 1e100), 2, 2)
+            #np.clip(self.y_star + self.true_function(x), 0, 1e100), 2, 2)
+        self.true_posterior = distr.proportional(proportional, 0, 1.5 * np.pi)
         self.true_posterior_args = []
+
+        self.simulator_args = ['theta']
 
     def get_theta_init(self):
         return self.prior.rvs(*self.prior_args)
@@ -308,10 +370,52 @@ class Heavy_Tailed_Sinus_Problem(ABC_Problem):
         return val
 
     def true_function(self, theta):
-        return np.sin(theta / 1.2) + 0.1 * theta
+        return np.sin(theta / 1.2 + 3) + 0.5 + 0.1 * theta
 
     def simulator(self, theta):
         if theta < self.rng[0] or theta > self.rng[1]:
-            return np.array(0)
-        return np.sin(theta / 1.2) + 0.1 * theta - \
-            distr.gamma.rvs(2, 10 / 5.0 ) + 0.5
+            return np.array([0])
+        return np.sin(theta / 1.2 + 3) + 0.1 * theta - \
+            distr.gamma.rvs(2, 2) + 0.5
+
+
+class Coin_Problem(ABC_Problem):
+
+    '''
+    The Coin Problem. The only parameter is the fairness of the coin. This
+    results in a bimodal simulator slice.
+    '''
+
+    def __init__(self, y_star=70, tosses=100):
+        self.y_star = y_star
+        self.y_dim = 1
+
+        self.prior = distr.uniform
+        self.prior_args = [0, 1]
+
+        self.rng = [0, 1]
+
+        self.proposal = distr.normal
+        self.proposal_args = [0.3]
+        self.use_log = False
+
+        self.tosses = tosses
+
+    def get_theta_init(self):
+        return self.prior.rvs(*self.prior_args)
+
+    def statistics(self, vals):
+        '''
+        Return the number of heads
+        '''
+        return np.array(sum(vals > 0), ndmin=2)
+
+    def simulator(self, theta):
+        rands = distr.uniform.rvs(0, 1, self.tosses)
+        fairness = 0.5 + np.tile(theta / 2, (self.tosses,))
+
+        # Decide which side is heavier:
+        if distr.uniform.rvs(0, 1) > 0.5:
+            return rands > fairness
+        else:
+            return rands <= fairness
