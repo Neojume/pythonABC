@@ -7,6 +7,7 @@ import numpy as np
 import kernels
 import hselect
 
+
 def sample_point_adaptive_weights(X, kernel=kernels.gaussian, h='Silverman', alpha=0.5, dist=None):
     '''
     Calculates the sample point weights, using the Silverman adaptive kernel estimate.
@@ -46,6 +47,7 @@ def sample_point_adaptive_weights(X, kernel=kernels.gaussian, h='Silverman', alp
     if dist is None:
         rep_X = np.repeat(X, n, 0)
         til_X = np.tile(X, (n, 1))
+
         dist = linalg.norm(rep_X - til_X, axis=1)
         dist = np.reshape(dist, (n, n))
 
@@ -122,7 +124,8 @@ def kernel_regression(x_star, X, t, kernel=kernels.gaussian, h='SJ',
         `N` is the weighted number of samples used.
     '''
 
-    weights = kernel_weights(x_star, X, kernel, h, dist=dist)
+    h = set_bandwidth(h, X.ravel())
+    weights = kernel_weights(x_star, X, kernel, h=h, dist=dist)
     weighted = t.T * weights
 
     N = np.log(np.sum(weights))
@@ -176,55 +179,7 @@ def calc_dist(x_star, X):
     return linalg.norm(x_star - X, axis=1)
 
 
-def doubly_kernel_estimate(x_star, y_star, X, t,
-                           kernel_x=kernels.gaussian, h_x='SJ',
-                           kernel_y=kernels.gaussian, h_y='SJ'):
-    '''
-    Returns the logarithm of the density estimate of y_star at location
-    x_star.
-
-    Parameters
-    ----------
-    x_star : np.array
-        Estimate location.
-        Of length M, where M is the dimensionality of x
-        Note: 1D
-    y_star : float
-        The value to calculate the density of.
-    X : np.array
-        Coordinates of samples.
-        N x M, where M is the dimensionality of x, N the number of samples
-    t : np.array
-        Sample values.
-        N x 1, where N is the number of samples
-    kernel_x : kernel class
-        kernel to use for the estimate in the x direction, default Gaussian
-    h_x : float or string
-        Bandwidth of the x-kernel
-    kernel_y : kernel class
-        kernel to use for the estimate of the density function.
-        Default Gaussian.
-    h_y : float float or string
-        Bandwidth of the y-kernel
-
-    Returns
-    -------
-    log_estimate : float
-        The logarithm of the density estimate.
-    '''
-
-    h_x = set_bandwidth(h_x, X.ravel())
-    h_y = set_bandwidth(h_y, t.ravel())
-
-    # TODO: Make it work when more x or y are queried
-    weights_x = kernel_weights(x_star, X, kernel_x, h_x)
-    weights_y = kernel_weights(y_star, t, kernel_y, h_y)
-    weights_y *= weights_x
-
-    return np.log(sum(weights_y)) - np.log(sum(weights_x))
-
-
-def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None):
+def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None, dist=None):
     '''
     Returns the non radial kernel-weights for the data points given the x-star.
     This means that each dimension has its own bandwidth.
@@ -256,13 +211,13 @@ def kernel_weights_non_radial(x_star, X, kernel, h='SJ', weights=None):
     kweights = np.ones(X.shape[0])
 
     for d in xrange(dim):
-        kweights *= kernel_weights(x_star[d], X[:, [d]], kernel, h, weights)
+        kweights *= kernel_weights(x_star, X[:, [d]], kernel, h, weights, dist)
 
     return kweights
 
 
 def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
-                   weights=None, dist=None, ind_h=None):
+                   weights=None, dist=None, ind_h=None, tree=None):
     '''
     Returns the kernel-weights for the data points given the x-star.
 
@@ -284,6 +239,8 @@ def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
         Bandwidth of the kernel
     ind_h : np.array
         Individual bandwidth terms, sometimes denoted lambda.
+    tree : scipy.tree
+        The KD tree to quickly compute involved points.
 
     Returns
     -------
@@ -293,22 +250,41 @@ def kernel_weights(x_star, X, kernel=kernels.gaussian, h='SJ',
 
     h = set_bandwidth(h, X.ravel(), weights=weights)
 
-    # TODO: REMOVE THIS HACK
     if h == 0.0:
-        h = 1.0
-    if dist is None:
-        u = linalg.norm(x_star - X, axis=1)
-    else:
-        u = dist
-    if ind_h is None:
-        return kernel(u / h) / h
-    else:
-        h_arr = h * ind_h
+        # If bandwidth is zero all weights should be infinity.
+        # This effectively means that we need to perform simulations.
+        return np.zeros(X.shape[0])
+
+    if tree is None:
+        if dist is None:
+            u = linalg.norm(x_star - X, axis=1)
+        else:
+            u = dist
+
+        if ind_h is None:
+            return kernel(u / h) / h
+        else:
+            h_arr = h * ind_h
         return kernel(u / h_arr) / h_arr
+    else:
+        indices = tree.query_ball_point(x_star, 2 / h ** 2)
+
+        u = np.ones(X.shape[0], dtype=float)
+
+        if dist is None:
+            u[indices] = linalg.norm(x_star - X[indices], axis=1)
+        else:
+            u[indices] = dist[indices]
+
+        if ind_h is None:
+            return kernel(u / h) / h
+        else:
+            h_arr = h * ind_h
+            return kernel(u / h_arr) / h_arr
 
 
 def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
-                            weights=None, dist=None):
+                            weights=None, dist=None, nonradial=False):
     '''
     Returns the kernel density estimate at x_star using the given kernel and
     bandwidth on the given data.
@@ -336,16 +312,33 @@ def kernel_density_estimate(x_star, X, kernel=kernels.gaussian, h='SJ',
         Array of distances to x_star for each data point. Avoids doubly
         calculating the distances, if you already have them.
         Default None.
+    nonradial : bool
+        Whether to use non radial kernel weights. i.e. multiplicative kernel.
 
     Returns
     -------
     log_estimate : float
         The log of estimated density at the probe location.
+    log_conf: float
+        The log of the confidence interval
     '''
 
-    kweights = kernel_weights(x_star, X, kernel, h, weights, dist)
+    h = set_bandwidth(h, X.ravel(), weights=weights)
+
+    if nonradial:
+        kweights = kernel_weights_non_radial(x_star, X, kernel, h, weights, dist)
+    else:
+        kweights = kernel_weights(x_star, X, kernel, h, weights, dist)
 
     if weights is None:
-        return np.log(np.sum(kweights)) - np.log(len(X))
+        log_n = np.log(len(X))
+        log_est = np.log(np.sum(kweights) + 1e-50) - log_n
     else:
-        return np.log(np.sum(weights * kweights)) - np.log(np.sum(weights))
+        log_n = np.log(np.sum(weights))
+        log_est = np.log(np.sum(weights * kweights) + 1e-50) - log_n
+
+    log_R_gauss = - np.log(2) - 0.5 * np.log(np.pi)
+    log_conf = np.log(1.96) + 0.5 * \
+        (log_est + log_R_gauss - np.log(h) - log_n)
+
+    return log_est#, log_conf
