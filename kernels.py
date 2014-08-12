@@ -8,7 +8,7 @@ import numpy as np
 
 
 def epanechnikov(u):
-    return np.array(abs(u) <= 1.0, int) * 0.75 * (1 - np.square(u))
+    return 0.75 * (1 - np.square(np.clip(u, -1, 1)))
 
 
 def tricube(u):
@@ -16,10 +16,12 @@ def tricube(u):
         (1 - np.abs(u) ** 3) ** 3
 
 
+def triweight(u):
+    return (35.0 / 32.0) * pow(1 - np.square(np.clip(u, -1, 1)), 3.0)
+
+
 def triangular(u):
-    if np.abs(u) <= 1.0:
-        return (1 - np.abs(u))
-    return 0.0
+    return (1 - np.abs(np.clip(u, -1, 1)))
 
 
 def logistic(u):
@@ -33,8 +35,25 @@ def log_logistic(u):
 
 
 def gaussian(u):
+    # sigma = 1
     return np.exp(-0.5 * np.square(u)) / np.sqrt(2 * np.pi)
 
 
+# NOTE: this only works for 1 / x sigmas where x is an integer.
+def param_gaussian(sigma):
+    def _param_gaussian(u):
+        return np.exp(- np.square(u) / (2 * sigma ** 2.0)) / (np.sqrt(2 * np.pi) * sigma)
+    kernel = _param_gaussian
+    kernel.func_name = 'param_gaussian_sigma' + str(int(1.0/sigma))
+    return param_gaussian
+
 def log_gaussian(u):
     return -0.5 * np.square(u) - np.log(np.sqrt(2 * np.pi))
+
+
+def circle_spike(u):
+    return 3.0 * (1.0 - np.sqrt(np.abs(np.clip(u, -1, 1)))) ** 2
+
+
+def exponential(u):
+    return 0.5 * (np.e - np.exp(np.abs(np.clip(u, -1, 1))))
