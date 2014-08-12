@@ -1,4 +1,4 @@
-"""
+'''
 This module implements the Lowess function for nonparametric regression.
 
 Functions:
@@ -6,14 +6,7 @@ lowess        Fit a smooth nonparametric regression curve to a scatterplot.
 
 For more information, see
 
-William S. Cleveland: "Robust locally weighted regression and smoothing
-scatterplots", Journal of the American Statistical Association, December 1979,
-volume 74, number 368, pp. 829-836.
-
-William S. Cleveland and Susan J. Devlin: "Locally weighted regression: An
-approach to regression analysis by local fitting", Journal of the American
-Statistical Association, September 1988, volume 83, number 403, pp. 596-610.
-"""
+'''
 
 import numpy as np
 from scipy import linalg
@@ -21,9 +14,10 @@ import kernels
 import kernel_methods as km
 
 
-def lowessNd(x_star, x, y, kernel=kernels.tricube, bandwidth=2. / 3., radial=False):
+def lowessNd(x_star, x, y, kernel=kernels.tricube, bandwidth=2. / 3., radial=False, dist=None):
     '''
     Performs locally weighted linear regression in multiple dimensions.
+    For more information see [1]_ and [2]_.
 
     Parameters
     ----------
@@ -40,16 +34,28 @@ def lowessNd(x_star, x, y, kernel=kernels.tricube, bandwidth=2. / 3., radial=Fal
         The bandwidth to use. Default 2 / 3.
     radial : bool (optional)
         Whether to use a radial kernel. Default False.
+
+    References
+    ----------
+    .. [1] William S. Cleveland: "Robust locally weighted regression and smoothing
+       scatterplots", Journal of the American Statistical Association, December 1979,
+       volume 74, number 368, pp. 829-836.
+
+    .. [2] William S. Cleveland and Susan J. Devlin: "Locally weighted regression: An
+       approach to regression analysis by local fitting", Journal of the American
+       Statistical Association, September 1988, volume 83, number 403, pp. 596-610.
     '''
 
     n = x.shape[0]
     dim = x.shape[1]
-    dist = np.linalg.norm(x - x_star, axis=1)
+    if dist is None:
+        dist = np.linalg.norm(x - x_star, axis=1)
     d = np.array(dist, ndmin=2).T
-    r = int(np.ceil(bandwidth * n))
+    r = min(np.floor(n / 2), int(np.ceil(bandwidth * n)))
     h = np.sort(d)[r]
     w = kernel(d / h)
 
+    # TODO: Fix radial
     #if radial:
     #    w = km.kernel_weights(x_star, x, kernel, bandwidth)
     #else:
@@ -66,25 +72,6 @@ def lowessNd(x_star, x, y, kernel=kernels.tricube, bandwidth=2. / 3., radial=Fal
         beta = linalg.solve(A, b)
     except:
         # If system of equations is singular: assume horizontal line
-        beta = np.zeros(n + 1)
+        beta = np.zeros(dim + 1)
 
     return beta, dist
-
-
-def lowess(x_star, x, y, bandwidth=2. / 3.):
-
-    n = len(x)
-    r = int(np.ceil(bandwidth * n))
-    d = np.abs(x - x_star)
-    d = np.array(np.linalg.norm(x - x_star, axis=1), ndmin=2).T
-    h = np.sort(d)[r]
-    w = kernels.tricube(d / h)
-
-    b = np.array([np.sum(w * y), np.sum(w * y * x)])
-    A = np.array([[np.sum(w), np.sum(w * x)],
-                  [np.sum(w * x), np.sum(w * x * x)]])
-
-    beta = linalg.solve(A, b)
-    #yest = beta[0] + beta[1] * x_star
-
-    return beta[1], beta[0], w
