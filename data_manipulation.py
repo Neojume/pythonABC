@@ -22,6 +22,7 @@ class ABCData(object):
         self.list_of_samples = []
         self.list_of_accepts = []
         self.list_of_sim_calls = []
+        self.list_of_sim_locs = []
 
     def add_datum(self, algorithm):
         '''
@@ -34,6 +35,11 @@ class ABCData(object):
         except AttributeError:
             # Algorithm has no accepted attribute
             pass
+        try:
+            self.list_of_sim_locs.append(algorithm.xs)
+        except AttributeError:
+            pass
+
         self.num_data += 1
 
 
