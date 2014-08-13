@@ -1,11 +1,5 @@
 '''
-This module implements the Lowess function for nonparametric regression.
-
-Functions:
-lowess        Fit a smooth nonparametric regression curve to a scatterplot.
-
-For more information, see
-
+Implements the locally weighted regression in multiple dimensions.
 '''
 
 import numpy as np
