@@ -6,6 +6,17 @@ Implementation of some kernel functions
 """
 import numpy as np
 
+__all__ = ['epanechnikov',
+           'tricube',
+           'triweight',
+           'triangular',
+           'logistic',
+           'log_logistic',
+           'gaussian',
+           'log_gaussian',
+           'param_gaussian',
+           'circle_spike',
+           'exponential']
 
 def epanechnikov(u):
     return 0.75 * (1 - np.square(np.clip(u, -1, 1)))

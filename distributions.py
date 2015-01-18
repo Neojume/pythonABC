@@ -14,6 +14,20 @@ from scipy import stats
 from scipy.integrate import quad
 
 
+__all__ = ['proportional',
+           'gamma',
+           'beta',
+           'exponential',
+           'poisson',
+           'normal',
+           'multivariate_normal',
+           'lognormal',
+           'logitnormal',
+           'uniform',
+           'uniform_nd',
+           'multivariate_mixture']
+
+
 class proportional(object):
 
     '''

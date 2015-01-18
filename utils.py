@@ -5,6 +5,17 @@ import kernel_methods as km
 import kernels
 
 
+__all__ = ['get_bootstrap_ids',
+           'get_bootstrap',
+           'get_weighted_bootstrap',
+           'conditional_error',
+           'logsumexp',
+           'peakdet',
+           'lowessNd',
+           'plot_statistics',
+           'plot_samples']
+
+
 def get_bootstrap_ids(N, weights=None):
     '''
     Provides bootstrap indices.

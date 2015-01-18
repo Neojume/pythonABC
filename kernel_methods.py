@@ -8,6 +8,16 @@ import kernels
 import hselect
 
 
+__all__ = ['sample_point_adaptive_weights',
+           'update_dist',
+           'kernel_regression',
+           'set_bandwidth',
+           'calc_dist',
+           'kernel_density_estimate',
+           'kernel_weights',
+           'kernel_weights_non_radial']
+
+
 def sample_point_adaptive_weights(X, kernel=kernels.gaussian, h='Silverman', alpha=0.5, dist=None):
     '''
     Calculates the sample point weights, using the Silverman adaptive kernel estimate.

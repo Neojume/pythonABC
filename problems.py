@@ -8,11 +8,16 @@ import distributions as distr
 import numpy as np
 from abc import ABCMeta, abstractmethod
 
-__all__ = ['ABC_Problem', 'Exponential_Problem',
-           'Wilkinson_Problem', 'Sinus_Problem',
-           'Radar_Problem', 'Sinus2D_Problem',
-           'Multimodal_Sinus_Problem', 'Heavy_Tailed_Sinus_Problem',
-           'Heavy_Wilkinson_Problem', 'Coin_Problem']
+__all__ = ['ABC_Problem',
+           'Exponential_Problem',
+           'Wilkinson_Problem',
+           'Sinus_Problem',
+           'Radar_Problem',
+           'Sinus2D_Problem',
+           'Multimodal_Sinus_Problem',
+           'Heavy_Tailed_Sinus_Problem',
+           'Heavy_Wilkinson_Problem',
+           'Coin_Problem']
 
 
 class ABC_Problem(object):

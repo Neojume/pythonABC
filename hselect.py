@@ -11,6 +11,15 @@ import numpy as np
 import distributions as distr
 
 
+__all__ = ['wmean',
+           'wvar',
+           'dnorm',
+           'hsilverman',
+           'hscott',
+           'hnorm',
+           'hsj']
+
+
 def wmean(x, w):
     '''
     Weighted mean
@@ -162,6 +171,3 @@ def sj(x, h):
 
     return (distr.normal.pdf(0, 0, np.sqrt(2)) /
             (n * abs(sdalpha2[0, 0]))) ** 0.2 - h
-
-if __name__ == '__main__':
-    print hsj(range(10))

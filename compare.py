@@ -10,6 +10,13 @@ import os
 import os.path
 
 
+__all__ = ['NMSE_convergence',
+           'variation_distance',
+           'plot_distances',
+           'plot_convergence',
+           'run_algorithms']
+
+
 def NMSE_convergence(problem, samples):
     cur_avg = np.zeros(problem.y_dim)
 
