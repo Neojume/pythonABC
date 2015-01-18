@@ -12,20 +12,27 @@ from numpy import linalg
 from abc import ABCMeta, abstractmethod
 import matplotlib.pyplot as plt
 
-from lowess import lowessNd
-
 import kernels
 import kernel_methods as km
 import distributions as distr
 import data_manipulation as dm
 from utils import logsumexp, conditional_error, \
-    get_bootstrap, get_weighted_bootstrap, get_bootstrap_ids
+    get_bootstrap, get_weighted_bootstrap, get_bootstrap_ids, \
+    lowessNd
 from problems import ABC_Problem
 
-__all__ = [
-    'Base_ABC', 'Base_MCMC_ABC', 'Reject_ABC', 'Marginal_ABC',
-    'Pseudo_Marginal_ABC', 'Base_SL_ABC', 'SL_ABC', 'KL_ABC', 'ASL_ABC',
-    'AKL_ABC', 'PKS_ABC', 'PSS_ABC']
+__all__ = ['Base_ABC',
+           'Base_MCMC_ABC',
+           'Reject_ABC',
+           'Marginal_ABC',
+           'Pseudo_Marginal_ABC',
+           'Base_SL_ABC',
+           'SL_ABC',
+           'KL_ABC',
+           'ASL_ABC',
+           'AKL_ABC',
+           'PKS_ABC',
+           'PSS_ABC']
 
 
 class Base_ABC(object):
@@ -1171,7 +1178,7 @@ class PSS_ABC(Base_MCMC_ABC):
             else:
                 new_x = self.theta_p
 
-            new_x = self.prior.rvs(*self.prior_args)
+            #new_x = self.prior.rvs(*self.prior_args)
 
             self.ts.append(self.statistics(self.simulator(new_x)))
             self.xs.append(new_x)
@@ -1221,6 +1228,7 @@ class PSS_ABC(Base_MCMC_ABC):
             return False
 
         while True:
+
             # Turn the lists into arrays of the right shape
             xs_a = np.array(self.xs, ndmin=2)
             ts_a = np.array(self.ts, ndmin=2)
