@@ -107,7 +107,6 @@ class Base_ABC(object):
 
         Note: Should be called after a call to `run()`
         '''
-        print 'DATA?!?!: ',self.data_dir
         dm.save(self, data_dir=self.data_dir)
 
     def verbosity(self, i, interval=10):
