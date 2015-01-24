@@ -58,14 +58,43 @@ class ABC_Problem(object):
 
     @abstractmethod
     def get_theta_init(self):
+        '''
+        Returns the initial parameter setting (or sets one at random).
+        '''
         return NotImplemented
 
     @abstractmethod
     def statistics(self, vals):
+        '''
+        Applies the statistics to the values returned by the simulator.
+
+        Parameters
+        ----------
+        vals : array
+            The array of values returned by the simulator.
+
+        Returns
+        -------
+        stats : array
+            The array of computed statistics.
+        '''
         return NotImplemented
 
     @abstractmethod
     def simulator(self, theta):
+        '''
+        Runs the simulator with the given parameter settings.
+
+        Parameters
+        ----------
+        theta : array
+            The array of parameters
+
+        Returns
+        -------
+        output : array
+            The simulator output
+        '''
         return NotImplemented
 
 
