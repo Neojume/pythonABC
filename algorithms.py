@@ -266,7 +266,6 @@ class Base_MCMC_ABC(Base_ABC):
         '''
         # Reset previous values if needed
         if reset and not self.just_reset:
-            print self.just_reset
             self.reset()
 
         self.just_reset = False
