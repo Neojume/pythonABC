@@ -43,7 +43,7 @@ class Base_ABC(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, problem, verbose=False, save=True,
+    def __init__(self, problem, verbose=False, save=True, data_dir=True
                  **kwargs):
 
         self.problem = problem
@@ -70,6 +70,8 @@ class Base_ABC(object):
         self.sim_calls = []
 
         self.just_reset = False
+
+        self.data_dir = data_dir
 
     def __repr__(self):
         # This is used to create a data file for the results
@@ -105,7 +107,7 @@ class Base_ABC(object):
 
         Note: Should be called after a call to `run()`
         '''
-        dm.save(self)
+        dm.save(self, data_dir=self.data_dir)
 
     def verbosity(self, i, interval=10):
         if self.verbose and i % interval == 0:

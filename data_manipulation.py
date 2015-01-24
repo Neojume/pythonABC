@@ -60,7 +60,7 @@ def get_filename(algorithm):
     return str(algorithm) + '.abc'
 
 
-def load(algorithm):
+def load(algorithm, data_dir=True):
     '''
     Loads the results for the given algorithm with given parameters for
     the given problem. If there are no results for these combinations None is
@@ -70,6 +70,8 @@ def load(algorithm):
     ----------
     algorithm :
         An instance of an ABC algorithm
+    data_dir : boolean
+        Whether there is a directory `data` where the file is stored
 
     Returns
     -------
@@ -79,7 +81,11 @@ def load(algorithm):
 
     filename = get_filename(algorithm)
 
-    path = os.path.join(os.getcwd(), 'data', filename)
+    if data_dir:
+        path = os.path.join(os.getcwd(), 'data', filename)
+    else:
+        path = os.path.join(os.getcwd(), filename)
+
     if os.path.isfile(path):
         with open(path, 'rb') as f:
             data = pickle.load(f)
@@ -88,7 +94,7 @@ def load(algorithm):
         return None
 
 
-def save(algorithm):
+def save(algorithm, data_dir=True):
     '''
     Saves the results for the given algorithm with given parameters for
     the given problem.
@@ -97,11 +103,17 @@ def save(algorithm):
     ----------
     algorithm :
         An instance of an ABC algorithm
+    data_dir : boolean
+        Whether there is a directory `data` where the file is stored
     '''
 
     filename = get_filename(algorithm)
 
-    path = os.path.join(os.getcwd(), 'data', filename)
+    if data_dir:
+        path = os.path.join(os.getcwd(), 'data', filename)
+    else:
+        path = os.path.join(os.getcwd(), filename)
+
     if os.path.isfile(path):
         # If file exists open and append to the existing database
         with open(path, 'rb') as f:
