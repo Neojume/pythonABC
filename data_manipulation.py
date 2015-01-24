@@ -60,7 +60,7 @@ def get_filename(algorithm):
     return str(algorithm) + '.abc'
 
 
-def load(algorithm, data_dir=True):
+def load(algorithm, data_dir=False):
     '''
     Loads the results for the given algorithm with given parameters for
     the given problem. If there are no results for these combinations None is
@@ -94,7 +94,7 @@ def load(algorithm, data_dir=True):
         return None
 
 
-def save(algorithm, data_dir=True):
+def save(algorithm, data_dir=False):
     '''
     Saves the results for the given algorithm with given parameters for
     the given problem.
