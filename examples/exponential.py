@@ -1,6 +1,6 @@
 '''
-An example of how to implement a new problem class and perform
-some experiments on it.
+An example of how to implement a new problem class, perform some experiments on
+it and use some other functions of this lib.
 
 @author Steven
 '''
@@ -18,6 +18,7 @@ import pythonABC.distributions as distr
 import pythonABC.algorithms as algs
 import pythonABC.utils as utils
 import pythonABC.kernels as kernels
+import pythonABC.data_manipulation as dm
 
 
 class Exponential_Problem(ABC_Problem):
@@ -80,22 +81,58 @@ problem_instance = Exponential_Problem()
 #   The epsilon tube for the algorithm is set to 0.05.
 #   The number of simulations to perform each iteration is set to 10.
 #   The covariance matrix is forced to be diagonal.
-#   The algorithm will print iteration number and number of simulation
-#   calls to the console.
+#   The algorithm will print iteration number and number of simulation  calls
+#   to the console.
 #   There is no data directory to store the results in.
+#   The results will not be saved.
+# Note that by default the result will be stored in a .abc file. This behaviour
+# can be turned of by setting the option `save` to False.
 experiment = algs.SL_ABC(
         problem_instance,
         epsilon=0.05,
         S=10,
         diag=True,
         verbose=True,
-        data_dir=False)
+        data_dir=False,
+        save=False)
 
 # Run the experiment for 5000 samples
 experiment.run(5000)
 
-# Plot the last 5000 samples using a histogram
+# Plot the samples using a histogram. The plot function in utils will also plot
+# the true posterior density if set in the problem class.
 utils.plot_samples(problem_instance, experiment.samples)
 
 # Show the results
 plt.show()
+
+# The experiment can be run again with another call to the run method. If we
+# wanted to continue from the point where the Markov chain stopped after the
+# last run terminated, the run method can be invoked with the option `reset`
+# set to False.
+
+# Continue the experiment for an additional 5000 samples.
+experiment.run(5000, reset=False)
+
+# Here we should have 10000 samples in our experiment
+print len(experiment.samples)
+assert len(experiment.samples) == 10000
+
+# Because the save flag was set to False, save manually.
+# Filename is generated using the name of the algorithm, the settings of its
+# parameters and the problem that its solving.
+dm.save(experiment)
+
+# The load function can be used to load previous experiments data.
+# Note that the experiment object is used to determine which .abc file to
+# load. The returned data object can contain data for more than 1 experiment.
+data = dm.load(experiment)
+
+# The data object contains different fields for the information that is stored.
+# There is for example a list containing lists of samples. The first entry of
+# this list is the list of samples of our experiment. (Given that we did not run
+# any other experiments before this one).
+assert data.list_of_samples[0] == experiment.samples
+
+# There are a couple of other fields, see the ABCData class in the data
+# manipulation file.
