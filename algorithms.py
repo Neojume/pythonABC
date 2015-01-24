@@ -43,7 +43,7 @@ class Base_ABC(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, problem, verbose=False, save=True, data_dir=True
+    def __init__(self, problem, verbose=False, save=True, data_dir=True,
                  **kwargs):
 
         self.problem = problem
@@ -107,6 +107,7 @@ class Base_ABC(object):
 
         Note: Should be called after a call to `run()`
         '''
+        print 'DATA?!?!: ',self.data_dir
         dm.save(self, data_dir=self.data_dir)
 
     def verbosity(self, i, interval=10):
