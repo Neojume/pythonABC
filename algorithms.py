@@ -207,9 +207,9 @@ class Base_MCMC_ABC(Base_ABC):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, problem, verbose=False, save=True, **kwargs):
+    def __init__(self, problem, verbose=False, save=True, data_dir=True, **kwargs):
         super(Base_MCMC_ABC, self).__init__(
-            problem, verbose, save)
+            problem, verbose, save, data_dir)
 
         assert isinstance(problem, ABC_Problem), \
             'Problem is not an instance of ABC_Problem'
