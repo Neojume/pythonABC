@@ -78,6 +78,7 @@ class Exponential_Problem(ABC_Problem):
 problem_instance = Exponential_Problem()
 
 # Create the experiment where:
+#   The used algorithm is the Synthetic Likelihood by Wood.
 #   The epsilon tube for the algorithm is set to 0.05.
 #   The number of simulations to perform each iteration is set to 10.
 #   The covariance matrix is forced to be diagonal.
@@ -115,7 +116,6 @@ plt.show()
 experiment.run(5000, reset=False)
 
 # Here we should have 10000 samples in our experiment
-print len(experiment.samples)
 assert len(experiment.samples) == 10000
 
 # Because the save flag was set to False, save manually.
