@@ -267,7 +267,7 @@ class uniform(object):
     def rvs(a=0, b=1, N=1):
         return np.random.uniform(a, b, N)
 
-
+#TODO: make naming consistent
 class uniform_nd(object):
 
     '''

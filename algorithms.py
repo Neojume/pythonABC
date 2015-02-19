@@ -639,7 +639,7 @@ class KL_ABC(Base_SL_ABC):
 
     def __init__(self, problem, **params):
         '''
-        Creates an instance of the Kerne; Synthetic Likelihood ABC algorithm.
+        Creates an instance of the Kernel Synthetic Likelihood ABC algorithm.
 
         Parameters
         ----------
@@ -1375,7 +1375,8 @@ class PKS_ABC(Base_MCMC_ABC):
                  smoothed_bs=True,
                  orthogonal=False,
                  verbose=False,
-                 save=True):
+                 save=True,
+                 data_dir=True):
         '''
         Creates an instance of the Linear Corrected Kernel Surrogate ABC
         algorithm.
@@ -1442,7 +1443,7 @@ class PKS_ABC(Base_MCMC_ABC):
             If `True`, results will be stored in a possibly existing database
             Default `True`.
         '''
-        super(PKS_ABC, self).__init__(problem, verbose=verbose, save=save)
+        super(PKS_ABC, self).__init__(problem, verbose=verbose, save=save, data_dir=data_dir)
 
         assert S is not None or ksi is not None, \
             'There needs to be an uncertainty measure: either S or ksi'
@@ -1524,7 +1525,7 @@ class PKS_ABC(Base_MCMC_ABC):
 
         self.current_sim_calls += self.delta_S
 
-        xs_a = np.array(self.xs, ndmin=2)
+        xs_a = np.array(self.xs, ndmin=2, dtype=float)
 
         if self.use_tree:
             self.tree = sp.KDTree(xs_a)
@@ -1570,8 +1571,8 @@ class PKS_ABC(Base_MCMC_ABC):
 
         while True:
             # Turn the lists into arrays of the right shape
-            xs_a = np.array(self.xs, ndmin=2)
-            ts_a = np.array(self.ts, ndmin=2)
+            xs_a = np.array(self.xs, ndmin=2, dtype=float)
+            ts_a = np.array(self.ts, ndmin=2, dtype=float)
 
             if self.use_tree:
                 dist_x = None
